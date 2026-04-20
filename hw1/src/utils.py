@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +73,13 @@ def save_history(history: dict[str, list[float]], path: str | Path) -> None:
     save_json(history, path)
 
 
+def copy_file(src: str | Path, dst: str | Path) -> None:
+    src_path = Path(src)
+    dst_path = Path(dst)
+    dst_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src_path, dst_path)
+
+
 def _read_scalar(raw: str) -> Any:
     value = raw.strip()
     if not value:
@@ -81,6 +90,11 @@ def _read_scalar(raw: str) -> Any:
         return value.lower() == "true"
     if value.lower() in {"none", "null"}:
         return None
+
+    try:
+        return ast.literal_eval(value)
+    except (ValueError, SyntaxError):
+        pass
 
     try:
         if "." in value or "e" in value.lower():
@@ -210,6 +224,27 @@ def plot_weights(weight: np.ndarray, path: str | Path, max_items: int = 64) -> N
         plt.axis("off")
 
     plt.suptitle("First Layer Weights", y=1.02)
+    plt.tight_layout()
+    plt.savefig(path, dpi=180)
+    plt.close()
+
+
+def plot_top_weight_neurons(weight: np.ndarray, path: str | Path, top_k: int = 25) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    norms = np.linalg.norm(weight, axis=0)
+    top_indices = np.argsort(norms)[::-1][:top_k]
+    cols = 5
+    rows = int(np.ceil(len(top_indices) / cols))
+    plt.figure(figsize=(cols * 2.0, rows * 2.2))
+
+    for plot_idx, neuron_idx in enumerate(top_indices, start=1):
+        plt.subplot(rows, cols, plot_idx)
+        plt.imshow(weight[:, neuron_idx].reshape(28, 28), cmap="coolwarm")
+        plt.title(f"#{neuron_idx}\n||w||={norms[neuron_idx]:.2f}", fontsize=8)
+        plt.axis("off")
+
+    plt.suptitle("Top-25 Weight-Norm Neurons", y=1.01)
     plt.tight_layout()
     plt.savefig(path, dpi=180)
     plt.close()

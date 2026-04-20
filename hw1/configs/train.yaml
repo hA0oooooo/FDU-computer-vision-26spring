@@ -2,11 +2,11 @@ seed: 42
 num_threads: 1
 data_dir: data/raw
 split_path: data/splits/split_indices.npz
-checkpoint_path: artifacts/checkpoints/best_model.npz
-best_meta_path: artifacts/logs/best_meta.json
+checkpoint_path: artifacts/checkpoints/best.npz
+best_meta_path: artifacts/logs/best.json
 history_path: artifacts/logs/history.json
-loss_plot_path: figures/loss.png
-val_acc_plot_path: figures/val_acc.png
+loss_plot_path: artifacts/plots/train_loss.png
+val_acc_plot_path: artifacts/plots/val_acc.png
 hidden_dim: 256
 activation: relu
 batch_size: 256
@@ -19,3 +19,8 @@ patience: 7
 min_delta: 1e-4
 lr_decay_step: 10
 lr_decay_gamma: 0.7
+verbose: true
+save_best_model: true
+save_best_meta: true
+save_history: true
+save_plots: true

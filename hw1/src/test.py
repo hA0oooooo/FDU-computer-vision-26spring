@@ -16,13 +16,13 @@ if __package__ is None or __package__ == "":
     from src.losses import cross_entropy
     from src.modules import MLP
     from src.tensor import Tensor
-    from src.utils import load_config, load_model, plot_confusion, plot_errors, plot_weights, save_json, set_seed, set_threads
+    from src.utils import load_config, load_model, plot_confusion, save_json, set_seed, set_threads
 else:
     from .dataloader import load_fashion_mnist, make_batches
     from .losses import cross_entropy
     from .modules import MLP
     from .tensor import Tensor
-    from .utils import load_config, load_model, plot_confusion, plot_errors, plot_weights, save_json, set_seed, set_threads
+    from .utils import load_config, load_model, plot_confusion, save_json, set_seed, set_threads
 
 CLASS_NAMES = [
     "T-shirt/top",
@@ -44,13 +44,19 @@ def _confusion_matrix(labels: np.ndarray, preds: np.ndarray, num_classes: int = 
     return matrix
 
 
+def _print_confusion_matrix(matrix: np.ndarray) -> None:
+    print("confusion_matrix:")
+    for idx, row in enumerate(matrix):
+        print(f"{CLASS_NAMES[idx]:>12}: {row.tolist()}")
+
+
 def test_model(config_path: str | Path = "configs/test.yaml") -> dict[str, float]:
     config = load_config(config_path)
     set_seed(int(config.get("seed", 42)))
     set_threads(int(config.get("num_threads", 1)))
 
     meta = {}
-    meta_path = Path(config.get("meta_path", "artifacts/logs/best_meta.json"))
+    meta_path = Path(config.get("meta_path", "artifacts/logs/best.json"))
     if meta_path.exists():
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
 
@@ -62,7 +68,7 @@ def test_model(config_path: str | Path = "configs/test.yaml") -> dict[str, float
         output_dim=int(meta.get("output_dim", config.get("output_dim", 10))),
         activation=str(meta.get("activation", config.get("activation", "relu"))),
     )
-    load_model(model, config.get("checkpoint_path", "artifacts/checkpoints/best_model.npz"))
+    load_model(model, config.get("checkpoint_path", "artifacts/checkpoints/best.npz"))
 
     total_loss = 0.0
     total_correct = 0
@@ -88,23 +94,19 @@ def test_model(config_path: str | Path = "configs/test.yaml") -> dict[str, float
     matrix = _confusion_matrix(test_labels, preds, num_classes=10)
     test_acc = total_correct / total_samples
     test_loss = total_loss / total_samples
+    _print_confusion_matrix(matrix)
 
-    plot_confusion(matrix, config.get("confusion_path", "figures/confusion_matrix.png"), class_names=CLASS_NAMES)
-    plot_errors(
-        test_images,
-        test_labels,
-        preds,
-        config.get("errors_path", "figures/errors.png"),
-        class_names=CLASS_NAMES,
-    )
-    plot_weights(model.fc1.weight.data, config.get("weights_path", "figures/first_layer_weights.png"))
+    plot_confusion(matrix, config.get("confusion_path", "artifacts/eval/confusion.png"), class_names=CLASS_NAMES)
+    confusion_csv_path = Path(config.get("confusion_csv_path", "artifacts/eval/confusion.csv"))
+    confusion_csv_path.parent.mkdir(parents=True, exist_ok=True)
+    np.savetxt(confusion_csv_path, matrix, fmt="%d", delimiter=",")
 
     summary = {
         "test_loss": float(test_loss),
         "test_acc": float(test_acc),
         "num_test_samples": int(total_samples),
     }
-    save_json(summary, config.get("summary_path", "artifacts/eval/test_summary.json"))
+    save_json(summary, config.get("summary_path", "artifacts/eval/summary.json"))
     print(f"test_loss={test_loss:.4f} | test_acc={test_acc:.4f}")
     return summary
 

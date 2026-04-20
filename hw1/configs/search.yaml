@@ -1,0 +1,8 @@
+base_config_path: configs/train.yaml
+search_dir: artifacts/search
+search_type: grid
+trial_log_path: artifacts/search/search.txt
+lr_values: [0.1, 0.05, 0.01]
+hidden_dim_values: [128, 256, 512]
+weight_decay_values: [1e-3, 1e-4, 1e-5]
+verbose: true
