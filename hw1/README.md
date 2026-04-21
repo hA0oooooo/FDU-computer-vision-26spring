@@ -1,4 +1,4 @@
-# HW1: 从零开始构建三层神经网络分类器，实现 Fashion-MNIST 图像分类
+# HW1: 从零开始构建三层神经网络分类器 实现 Fashion-MNIST 图像分类
 
 作业一使用 `NumPy` 从零实现 Fashion-MNIST 分类任务中的 MLP 模型，并手写自动微分与反向传播，不依赖 `PyTorch`、`TensorFlow`、`JAX` 等深度学习框架。命令默认在 `hw1/` 目录下执行。
 
