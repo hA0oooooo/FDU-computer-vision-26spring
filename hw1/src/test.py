@@ -5,24 +5,11 @@ from pathlib import Path
 
 import numpy as np
 
-if __package__ is None or __package__ == "":
-    import sys
-
-    ROOT = Path(__file__).resolve().parents[1]
-    if str(ROOT) not in sys.path:
-        sys.path.append(str(ROOT))
-
-    from src.dataloader import load_fashion_mnist, make_batches
-    from src.losses import cross_entropy
-    from src.modules import MLP
-    from src.tensor import Tensor
-    from src.utils import load_config, load_model, plot_confusion, save_json, set_seed, set_threads
-else:
-    from .dataloader import load_fashion_mnist, make_batches
-    from .losses import cross_entropy
-    from .modules import MLP
-    from .tensor import Tensor
-    from .utils import load_config, load_model, plot_confusion, save_json, set_seed, set_threads
+from .dataloader import load_fashion_mnist, make_batches
+from .losses import cross_entropy
+from .modules import MLP
+from .tensor import Tensor
+from .utils import load_config, load_model, plot_confusion, save_json, set_seed, set_threads
 
 CLASS_NAMES = [
     "T-shirt/top",
@@ -52,23 +39,30 @@ def _print_confusion_matrix(matrix: np.ndarray) -> None:
 
 def test_model(config_path: str | Path = "configs/test.yaml") -> dict[str, float]:
     config = load_config(config_path)
-    set_seed(int(config.get("seed", 42)))
-    set_threads(int(config.get("num_threads", 1)))
+    seed = int(config["seed"])
+    num_threads = int(config["num_threads"])
+    data_dir = config["data_dir"]
+    checkpoint_path = config["checkpoint_path"]
+    meta_path = Path(config["meta_path"])
+    batch_size = int(config["batch_size"])
+    confusion_path = config["confusion_path"]
+    confusion_csv_path = Path(config["confusion_csv_path"])
+    summary_path = config["summary_path"]
 
-    meta = {}
-    meta_path = Path(config.get("meta_path", "artifacts/logs/best.json"))
-    if meta_path.exists():
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    set_seed(seed)
+    set_threads(num_threads)
 
-    _, _, test_images, test_labels = load_fashion_mnist(config.get("data_dir", "data/raw"))
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+
+    _, _, test_images, test_labels = load_fashion_mnist(data_dir)
 
     model = MLP(
-        input_dim=int(meta.get("input_dim", config.get("input_dim", 784))),
-        hidden_dim=int(meta.get("hidden_dim", config.get("hidden_dim", 256))),
-        output_dim=int(meta.get("output_dim", config.get("output_dim", 10))),
-        activation=str(meta.get("activation", config.get("activation", "relu"))),
+        input_dim=int(meta["input_dim"]),
+        hidden_dim=int(meta["hidden_dim"]),
+        output_dim=int(meta["output_dim"]),
+        activation=str(meta["activation"]),
     )
-    load_model(model, config.get("checkpoint_path", "artifacts/checkpoints/best.npz"))
+    load_model(model, checkpoint_path)
 
     total_loss = 0.0
     total_correct = 0
@@ -78,7 +72,7 @@ def test_model(config_path: str | Path = "configs/test.yaml") -> dict[str, float
     for batch_images, batch_labels in make_batches(
         test_images,
         test_labels,
-        batch_size=int(config.get("batch_size", 256)),
+        batch_size=batch_size,
         shuffle=False,
     ):
         logits = model(Tensor(batch_images))
@@ -96,8 +90,7 @@ def test_model(config_path: str | Path = "configs/test.yaml") -> dict[str, float
     test_loss = total_loss / total_samples
     _print_confusion_matrix(matrix)
 
-    plot_confusion(matrix, config.get("confusion_path", "artifacts/eval/confusion.png"), class_names=CLASS_NAMES)
-    confusion_csv_path = Path(config.get("confusion_csv_path", "artifacts/eval/confusion.csv"))
+    plot_confusion(matrix, confusion_path, class_names=CLASS_NAMES)
     confusion_csv_path.parent.mkdir(parents=True, exist_ok=True)
     np.savetxt(confusion_csv_path, matrix, fmt="%d", delimiter=",")
 
@@ -106,7 +99,7 @@ def test_model(config_path: str | Path = "configs/test.yaml") -> dict[str, float
         "test_acc": float(test_acc),
         "num_test_samples": int(total_samples),
     }
-    save_json(summary, config.get("summary_path", "artifacts/eval/summary.json"))
+    save_json(summary, summary_path)
     print(f"test_loss={test_loss:.4f} | test_acc={test_acc:.4f}")
     return summary
 

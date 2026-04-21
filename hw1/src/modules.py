@@ -21,7 +21,7 @@ def _activate(x: Tensor, activation: str) -> Tensor:
         return x.tanh()
     if activation == "swilu":
         return x.swilu()
-    return x.relu()
+    raise ValueError(f"Unsupported activation: {activation}")
 
 
 class Module:

@@ -1,4 +1,4 @@
-seed: 42
+seed: 0
 num_threads: 1
 data_dir: data/raw
 checkpoint_path: artifacts/checkpoints/best.npz

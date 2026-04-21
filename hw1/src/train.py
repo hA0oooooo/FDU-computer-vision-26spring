@@ -1,52 +1,23 @@
 from __future__ import annotations
 
-import copy
 from pathlib import Path
 
 import numpy as np
 
-if __package__ is None or __package__ == "":
-    import sys
-
-    ROOT = Path(__file__).resolve().parents[1]
-    if str(ROOT) not in sys.path:
-        sys.path.append(str(ROOT))
-
-    from src.dataloader import load_fashion_mnist, make_batches, split_train_val
-    from src.losses import cross_entropy, weight_decay
-    from src.modules import MLP
-    from src.tensor import Tensor
-    from src.utils import (
-        load_config,
-        plot_loss,
-        plot_val_acc,
-        save_history,
-        save_json,
-        save_model,
-        set_seed,
-        set_threads,
-    )
-else:
-    from .dataloader import load_fashion_mnist, make_batches, split_train_val
-    from .losses import cross_entropy, weight_decay
-    from .modules import MLP
-    from .tensor import Tensor
-    from .utils import (
-        load_config,
-        plot_loss,
-        plot_val_acc,
-        save_history,
-        save_json,
-        save_model,
-        set_seed,
-        set_threads,
-    )
-
-
-def _resolve_config(config_path: str | Path, config: dict | None) -> dict:
-    if config is not None:
-        return copy.deepcopy(config)
-    return load_config(config_path)
+from .dataloader import load_fashion_mnist, make_batches, split_train_val
+from .losses import cross_entropy, weight_decay
+from .modules import MLP
+from .tensor import Tensor
+from .utils import (
+    load_config,
+    plot_loss,
+    plot_val_acc,
+    save_history,
+    save_json,
+    save_model,
+    set_seed,
+    set_threads,
+)
 
 
 def train_one_epoch(
@@ -115,29 +86,51 @@ def eval_epoch(
 
 
 def train_model(config_path: str | Path = "configs/train.yaml", config: dict | None = None) -> dict[str, float]:
-    config = _resolve_config(config_path, config)
-    set_seed(int(config.get("seed", 42)))
-    set_threads(int(config.get("num_threads", 1)))
-    verbose = bool(config.get("verbose", True))
-    save_best_model_flag = bool(config.get("save_best_model", True))
-    save_best_meta_flag = bool(config.get("save_best_meta", True))
-    save_history_flag = bool(config.get("save_history", True))
-    save_plots_flag = bool(config.get("save_plots", True))
+    config = config if config is not None else load_config(config_path)
+    seed = int(config["seed"])
+    num_threads = int(config["num_threads"])
+    data_dir = config["data_dir"]
+    split_path = config["split_path"]
+    checkpoint_path = config["checkpoint_path"]
+    best_meta_path = config["best_meta_path"]
+    history_path = config["history_path"]
+    loss_plot_path = config["loss_plot_path"]
+    val_acc_plot_path = config["val_acc_plot_path"]
+    hidden_dim = int(config["hidden_dim"])
+    activation = str(config["activation"])
+    batch_size = int(config["batch_size"])
+    epochs = int(config["epochs"])
+    base_lr = float(config["lr"])
+    weight_decay_value = float(config["weight_decay"])
+    val_ratio = float(config["val_ratio"])
+    early_stopping = bool(config["early_stopping"])
+    patience = int(config["patience"])
+    min_delta = float(config["min_delta"])
+    lr_decay_step = int(config["lr_decay_step"])
+    lr_decay_gamma = float(config["lr_decay_gamma"])
+    verbose = bool(config["verbose"])
+    save_best_model_flag = bool(config["save_best_model"])
+    save_best_meta_flag = bool(config["save_best_meta"])
+    save_history_flag = bool(config["save_history"])
+    save_plots_flag = bool(config["save_plots"])
 
-    train_images, train_labels, _, _ = load_fashion_mnist(config.get("data_dir", "data/raw"))
+    set_seed(seed)
+    set_threads(num_threads)
+
+    train_images, train_labels, _, _ = load_fashion_mnist(data_dir)
     x_train, y_train, x_val, y_val = split_train_val(
         train_images,
         train_labels,
-        val_ratio=float(config.get("val_ratio", 0.2)),
-        seed=int(config.get("seed", 42)),
-        split_path=config.get("split_path", "data/splits/split_indices.npz"),
+        val_ratio=val_ratio,
+        seed=seed,
+        split_path=split_path,
     )
 
     model = MLP(
         input_dim=x_train.shape[1],
-        hidden_dim=int(config.get("hidden_dim", 256)),
+        hidden_dim=hidden_dim,
         output_dim=10,
-        activation=str(config.get("activation", "relu")),
+        activation=activation,
     )
 
     history = {
@@ -149,34 +142,26 @@ def train_model(config_path: str | Path = "configs/train.yaml", config: dict | N
         "val_acc": [],
     }
 
-    base_lr = float(config.get("lr", 0.1))
-    lr_decay_step = int(config.get("lr_decay_step", 10))
-    lr_decay_gamma = float(config.get("lr_decay_gamma", 0.5))
-    patience = int(config.get("patience", 7))
-    min_delta = float(config.get("min_delta", 1e-4))
-    weight_decay_value = float(config.get("weight_decay", 1e-4))
-    early_stopping = bool(config.get("early_stopping", True))
-
     best_val_acc = -np.inf
     best_epoch = 0
     patience_count = 0
 
-    for epoch in range(int(config.get("epochs", 50))):
+    for epoch in range(epochs):
         lr = base_lr * (lr_decay_gamma ** (epoch // lr_decay_step))
         train_loss, train_acc = train_one_epoch(
             model,
             x_train,
             y_train,
-            batch_size=int(config.get("batch_size", 128)),
+            batch_size=batch_size,
             lr=lr,
             weight_decay_value=weight_decay_value,
-            seed=int(config.get("seed", 42)) + epoch,
+            seed=seed + epoch,
         )
         val_loss, val_acc = eval_epoch(
             model,
             x_val,
             y_val,
-            batch_size=int(config.get("batch_size", 128)),
+            batch_size=batch_size,
             weight_decay_value=weight_decay_value,
         )
 
@@ -200,22 +185,22 @@ def train_model(config_path: str | Path = "configs/train.yaml", config: dict | N
             best_epoch = epoch + 1
             patience_count = 0
             if save_best_model_flag:
-                save_model(model, config.get("checkpoint_path", "artifacts/checkpoints/best.npz"))
+                save_model(model, checkpoint_path)
             if save_best_meta_flag:
                 save_json(
                     {
                         "epoch": best_epoch,
                         "val_acc": float(best_val_acc),
                         "input_dim": int(x_train.shape[1]),
-                        "hidden_dim": int(config.get("hidden_dim", 256)),
+                        "hidden_dim": hidden_dim,
                         "output_dim": 10,
-                        "activation": str(config.get("activation", "relu")),
-                        "batch_size": int(config.get("batch_size", 128)),
-                        "seed": int(config.get("seed", 42)),
-                        "lr": float(config.get("lr", 0.1)),
-                        "weight_decay": float(config.get("weight_decay", 1e-4)),
+                        "activation": activation,
+                        "batch_size": batch_size,
+                        "seed": seed,
+                        "lr": base_lr,
+                        "weight_decay": weight_decay_value,
                     },
-                    config.get("best_meta_path", "artifacts/logs/best.json"),
+                    best_meta_path,
                 )
         else:
             patience_count += 1
@@ -224,10 +209,10 @@ def train_model(config_path: str | Path = "configs/train.yaml", config: dict | N
             break
 
     if save_history_flag:
-        save_history(history, config.get("history_path", "artifacts/logs/history.json"))
+        save_history(history, history_path)
     if save_plots_flag:
-        plot_loss(history, config.get("loss_plot_path", "artifacts/plots/train_loss.png"))
-        plot_val_acc(history, config.get("val_acc_plot_path", "artifacts/plots/val_acc.png"))
+        plot_loss(history, loss_plot_path)
+        plot_val_acc(history, val_acc_plot_path)
 
     return {
         "best_val_acc": float(best_val_acc),

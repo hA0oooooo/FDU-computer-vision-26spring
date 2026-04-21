@@ -1,0 +1,5 @@
+{
+  "test_loss": 0.36148727343082426,
+  "test_acc": 0.8716,
+  "num_test_samples": 10000
+}

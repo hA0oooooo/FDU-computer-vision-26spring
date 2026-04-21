@@ -210,25 +210,6 @@ def plot_errors(
     plt.close()
 
 
-def plot_weights(weight: np.ndarray, path: str | Path, max_items: int = 64) -> None:
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    count = min(weight.shape[1], max_items)
-    cols = 8
-    rows = int(np.ceil(count / cols))
-    plt.figure(figsize=(cols * 1.5, rows * 1.5))
-
-    for idx in range(count):
-        plt.subplot(rows, cols, idx + 1)
-        plt.imshow(weight[:, idx].reshape(28, 28), cmap="coolwarm")
-        plt.axis("off")
-
-    plt.suptitle("First Layer Weights", y=1.02)
-    plt.tight_layout()
-    plt.savefig(path, dpi=180)
-    plt.close()
-
-
 def plot_top_weight_neurons(weight: np.ndarray, path: str | Path, top_k: int = 25) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -236,15 +217,27 @@ def plot_top_weight_neurons(weight: np.ndarray, path: str | Path, top_k: int = 2
     top_indices = np.argsort(norms)[::-1][:top_k]
     cols = 5
     rows = int(np.ceil(len(top_indices) / cols))
-    plt.figure(figsize=(cols * 2.0, rows * 2.2))
+    fig, axes = plt.subplots(rows, cols, figsize=(cols * 2.2, rows * 2.5))
+    axes = np.atleast_1d(axes).reshape(rows, cols)
+    vmax = float(np.abs(weight[:, top_indices]).max())
+    image = None
 
     for plot_idx, neuron_idx in enumerate(top_indices, start=1):
-        plt.subplot(rows, cols, plot_idx)
-        plt.imshow(weight[:, neuron_idx].reshape(28, 28), cmap="coolwarm")
-        plt.title(f"#{neuron_idx}\n||w||={norms[neuron_idx]:.2f}", fontsize=8)
-        plt.axis("off")
+        row = (plot_idx - 1) // cols
+        col = (plot_idx - 1) % cols
+        ax = axes[row, col]
+        image = ax.imshow(weight[:, neuron_idx].reshape(28, 28), cmap="coolwarm", vmin=-vmax, vmax=vmax)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel(f"||w||={norms[neuron_idx]:.2f}", fontsize=8, labelpad=4)
 
-    plt.suptitle("Top-25 Weight-Norm Neurons", y=1.01)
-    plt.tight_layout()
-    plt.savefig(path, dpi=180)
-    plt.close()
+    for empty_idx in range(len(top_indices), rows * cols):
+        row = empty_idx // cols
+        col = empty_idx % cols
+        axes[row, col].axis("off")
+
+    fig.subplots_adjust(right=0.9, wspace=0.25, hspace=0.45)
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    fig.colorbar(image, cax=cbar_ax)
+    fig.savefig(path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
