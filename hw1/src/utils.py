@@ -32,7 +32,7 @@ def he_init(in_dim: int, out_dim: int) -> np.ndarray:
 
 
 def xavier_init(in_dim: int, out_dim: int) -> np.ndarray:
-    scale = np.sqrt(1.0 / in_dim)
+    scale = np.sqrt(2.0 / (in_dim + out_dim))
     return (np.random.randn(in_dim, out_dim) * scale).astype(np.float32)
 
 

@@ -2,23 +2,10 @@ from __future__ import annotations
 
 import numpy as np
 
-if __package__ is None or __package__ == "":
-    import sys
-    from pathlib import Path
-
-    ROOT = Path(__file__).resolve().parents[1]
-    if str(ROOT) not in sys.path:
-        sys.path.append(str(ROOT))
-
-    from src.losses import cross_entropy, weight_decay
-    from src.modules import MLP
-    from src.tensor import Tensor
-    from src.utils import set_seed
-else:
-    from .losses import cross_entropy, weight_decay
-    from .modules import MLP
-    from .tensor import Tensor
-    from .utils import set_seed
+from .losses import cross_entropy, weight_decay
+from .modules import MLP
+from .tensor import Tensor
+from .utils import set_seed
 
 
 def _toy_loss(model: MLP, inputs: np.ndarray, targets: np.ndarray, lam: float) -> float:
