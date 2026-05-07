@@ -1,0 +1,8 @@
+base_config: configs/resnet34_pretrained.yaml
+output_dir: outputs/search
+
+search_space:
+  backbone_lr: [0.00003, 0.0001]
+  head_lr: [0.0003, 0.001]
+  batch_size: [16, 32, 64]
+  epochs: [15]

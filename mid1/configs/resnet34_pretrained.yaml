@@ -1,0 +1,32 @@
+experiment_name: resnet34_pretrained
+output_dir: outputs/resnet34_pretrained
+
+seed: 42
+device: auto
+
+data:
+  root: ../dataset
+  image_size: 224
+  val_ratio: 0.2
+  num_workers: 4
+
+model:
+  name: resnet34
+  num_classes: 37
+  pretrained: true
+  attention: none
+
+train:
+  epochs: 10
+  batch_size: 32
+  optimizer: adamw
+  backbone_lr: 0.0001
+  head_lr: 0.001
+  weight_decay: 0.0001
+  scheduler: cosine
+  save_metric: val_acc
+  amp: false
+
+wandb:
+  entity: fudan-university-CS50028
+  project: mid-project
