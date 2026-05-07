@@ -1,9 +1,9 @@
 seed: 0
 num_threads: 1
 data_dir: data/raw
-checkpoint_path: artifacts/checkpoints/best.npz
-meta_path: artifacts/logs/best.json
+checkpoint_path: outputs/checkpoints/best.npz
+meta_path: outputs/logs/best.json
 batch_size: 256
-confusion_path: artifacts/eval/confusion.png
-confusion_csv_path: artifacts/eval/confusion.csv
-summary_path: artifacts/eval/summary.json
+confusion_path: outputs/eval/confusion.png
+confusion_csv_path: outputs/eval/confusion.csv
+summary_path: outputs/eval/summary.json

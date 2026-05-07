@@ -31,7 +31,7 @@ data/raw/t10k-labels-idx1-ubyte
 - `configs`：训练、测试与超参数搜索所使用的配置文件。
 - `data`：Fashion-MNIST 数据及训练/验证划分索引。
 - `src`：模型实现、训练脚本、测试脚本与工具函数。
-- `artifacts`：训练、测试与搜索过程中生成的权重、日志和图像结果。
+- `outputs`：训练、测试与搜索过程中生成的权重、日志和图像结果。
 - `reports`：实验报告中使用的可视化图片。
 
 主要文件描述：
@@ -61,7 +61,7 @@ python -m src.grad_check
 python -m src.search
 ```
 
-输出目录：`artifacts/search/`
+输出目录：`outputs/search/`
 
 * 训练
 
@@ -71,9 +71,9 @@ python -m src.train
 
 输出目录：
 
-- `artifacts/checkpoints/`
-- `artifacts/logs/`
-- `artifacts/plots/`
+- `outputs/checkpoints/`
+- `outputs/logs/`
+- `outputs/plots/`
 
 测试：
 
@@ -81,12 +81,12 @@ python -m src.train
 python -m src.test
 ```
 
-输出目录：`artifacts/eval/`
+输出目录：`outputs/eval/`
 
 
-### 6. 模型参数保存
+### 5. 模型参数保存
 
-- 训练得到的最佳模型权重：`artifacts/checkpoints/best.npz`
-- 对应的模型配置信息：`artifacts/logs/best.json`
+- 训练得到的最佳模型权重：`outputs/checkpoints/best.npz`
+- 对应的模型配置信息：`outputs/logs/best.json`
 - GitHub Repo 链接：`https://github.com/hA0oooooo/FDU-computer-vision-26spring/tree/main/hw1`
 - 模型权重下载链接：`https://drive.google.com/file/d/1Yh26iWBSMiOriqYB7lu_EKz0cUhys_Z8/view?usp=drive_link`

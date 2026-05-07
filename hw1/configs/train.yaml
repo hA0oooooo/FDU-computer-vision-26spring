@@ -2,11 +2,11 @@ seed: 0
 num_threads: 1
 data_dir: data/raw
 split_path: data/splits/split_indices.npz
-checkpoint_path: artifacts/checkpoints/best.npz
-best_meta_path: artifacts/logs/best.json
-history_path: artifacts/logs/history.json
-loss_plot_path: artifacts/plots/train_loss.png
-val_acc_plot_path: artifacts/plots/val_acc.png
+checkpoint_path: outputs/checkpoints/best.npz
+best_meta_path: outputs/logs/best.json
+history_path: outputs/logs/history.json
+loss_plot_path: outputs/plots/train_loss.png
+val_acc_plot_path: outputs/plots/val_acc.png
 hidden_dim: 256
 activation: swilu
 batch_size: 256
