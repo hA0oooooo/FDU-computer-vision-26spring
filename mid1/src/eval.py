@@ -17,6 +17,7 @@ def load_checkpoint(path, device):
 
 def evaluate_experiment(cfg, checkpoint_path=None):
     output_dir = cfg["output_dir"]
+    root_output_dir = "outputs"
     device = get_device(cfg.get("device", "auto"))
     checkpoint_path = checkpoint_path or os.path.join(output_dir, "checkpoints", "best.pt")
 
@@ -45,9 +46,15 @@ def evaluate_experiment(cfg, checkpoint_path=None):
         "trainable_params": trainable_params,
     }
 
-    eval_dir = os.path.join(output_dir, "eval")
-    ensure_dir(eval_dir)
-    pd.DataFrame([result]).to_csv(os.path.join(eval_dir, "test_result.csv"), index=False)
+    summary_path = os.path.join(root_output_dir, "eval.csv")
+    ensure_dir(root_output_dir)
+    pd.DataFrame([result]).to_csv(
+        summary_path,
+        mode="a",
+        header=not os.path.exists(summary_path),
+        index=False,
+    )
+
     print(result)
     return result
 

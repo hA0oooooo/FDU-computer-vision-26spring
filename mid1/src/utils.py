@@ -7,6 +7,10 @@ import yaml
 
 
 def load_config(path: str):
+    if path.lower().endswith(".json"):
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
@@ -55,4 +59,3 @@ def count_parameters(model):
     total = sum(p.numel() for p in model.parameters())
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return total, trainable
-

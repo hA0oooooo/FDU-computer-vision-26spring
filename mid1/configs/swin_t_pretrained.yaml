@@ -1,5 +1,5 @@
-experiment_name: resnet34_pretrained
-output_dir: outputs/resnet34_pretrained
+experiment_name: swin_t_pretrained
+output_dir: outputs/swin_t_pretrained
 
 seed: 42
 device: auto
@@ -11,10 +11,9 @@ data:
   num_workers: 0
 
 model:
-  name: resnet34
+  name: swin_t
   num_classes: 37
   pretrained: true
-  attention: none
 
 train:
   epochs: 15

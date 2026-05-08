@@ -8,7 +8,7 @@ data:
   root: ../dataset
   image_size: 224
   val_ratio: 0.2
-  num_workers: 4
+  num_workers: 0
 
 model:
   name: vit_tiny
@@ -16,7 +16,7 @@ model:
   pretrained: true
 
 train:
-  epochs: 30
+  epochs: 15
   batch_size: 32
   optimizer: adamw
   backbone_lr: 0.0001

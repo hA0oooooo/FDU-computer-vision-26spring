@@ -39,6 +39,17 @@ def build_vit_tiny(
     )
 
 
+def build_swin_t(
+    num_classes: int = 37,
+    pretrained: bool = False,
+):
+    weights = models.Swin_T_Weights.IMAGENET1K_V1 if pretrained else None
+    model = models.swin_t(weights=weights)
+    in_features = model.head.in_features
+    model.head = nn.Linear(in_features, num_classes)
+    return model
+
+
 def build_model(cfg):
     model_cfg = cfg["model"]
 
@@ -53,6 +64,12 @@ def build_model(cfg):
 
     if name == "vit_tiny":
         return build_vit_tiny(
+            num_classes=model_cfg.get("num_classes", 37),
+            pretrained=model_cfg.get("pretrained", False),
+        )
+
+    if name == "swin_t":
+        return build_swin_t(
             num_classes=model_cfg.get("num_classes", 37),
             pretrained=model_cfg.get("pretrained", False),
         )
