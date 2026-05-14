@@ -1,11 +1,8 @@
 __pycache__/
 *.pyc
 
-data/
 outputs/
 reports/
 
 wandb/
 *.pt
-*.pth
-*.ckpt
