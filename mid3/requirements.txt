@@ -1,0 +1,9 @@
+numpy
+pandas
+matplotlib
+pyyaml
+tqdm
+torch
+torchvision
+wandb
+
