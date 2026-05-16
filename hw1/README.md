@@ -89,4 +89,4 @@ python -m src.test
 - 训练得到的最佳模型权重：`outputs/checkpoints/best.npz`
 - 对应的模型配置信息：`outputs/logs/best.json`
 - GitHub Repo 链接：`https://github.com/hA0oooooo/FDU-computer-vision-26spring/tree/main/hw1`
-- 模型权重下载链接：`https://drive.google.com/file/d/1Yh26iWBSMiOriqYB7lu_EKz0cUhys_Z8/view?usp=drive_link`
+- 模型权重下载链接：`https://drive.google.com/file/d/1Yh26iWBSMiOriqYB7lu_EKz0cUhys_Z8/view?usp=sharing`
