@@ -1,4 +1,4 @@
-# Mid1: ResNet-34 Oxford-IIIT Pet 37 类宠物识别
+# 任务 1: ResNet-34 Oxford-IIIT Pet 37 类宠物识别
 
 本任务在 Oxford-IIIT Pet Dataset 上实现 37 类宠物分类。代码默认在 `mid1/` 目录下执行，使用 PyTorch / torchvision / timm 构建训练、验证、测试、超参数搜索和可视化工作流。
 
