@@ -1,0 +1,12 @@
+numpy
+pandas
+scipy
+pyyaml
+tqdm
+torch
+torchvision
+torchaudio
+ultralytics
+opencv-python
+lap
+wandb

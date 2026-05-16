@@ -1,0 +1,29 @@
+experiment_name: yolov8s_finetuned
+
+seed: 42
+device: auto
+
+data:
+  yaml: ../dataset/VisDrone/data.yaml
+  image_size: 640
+
+model:
+  weights: ../dataset/VisDrone/yolov8s.pt
+  best_weight: outputs/yolov8s/yolov8s_finetuned.pt
+
+train:
+  epochs: 50
+  batch_size: 16
+  num_workers: 2
+  amp: true
+
+val:
+  yolov8_csv: outputs/yolov8s/val_yolov8s_finetuned.csv
+  yolov8_baseline_csv: outputs/yolov8s/val_yolov8s.csv
+  yolov9_csv: outputs/yolov9/val_yolov9_finetuned.csv
+  yolov9_weight: ../dataset/VisDrone/yolov9_finetuned.pt
+
+wandb:
+  enabled: true
+  entity: fudan-university-CS50028
+  project: mid-project

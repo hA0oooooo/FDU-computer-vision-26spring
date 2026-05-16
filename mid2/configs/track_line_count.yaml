@@ -1,0 +1,32 @@
+models:
+  yolov8s_finetuned:
+    weights: outputs/yolov8s/yolov8s_finetuned.pt
+    output_dir: outputs/yolov8s
+  yolov9_finetuned:
+    weights: ../dataset/VisDrone/yolov9_finetuned.pt
+    output_dir: outputs/yolov9
+
+data:
+  source: ../dataset/videos/input/test_video.mp4
+
+track:
+  tracker: bytetrack.yaml
+  conf: 0.35
+  iou: 0.40
+  image_size: 960
+  device: auto
+  half: true
+  line_width: 2
+  font_size: 10
+  show_conf: true
+
+line_count:
+  enabled: true
+  enabled_models:
+    - yolov8s_finetuned
+  axis: x
+  position: 0.3
+  line_color: [0, 0, 255]
+  text_color: [255, 255, 255]
+  text_bg_color: [0, 0, 0]
+  line_thickness: 2

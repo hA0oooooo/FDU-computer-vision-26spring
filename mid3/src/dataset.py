@@ -131,7 +131,7 @@ def build_dataloaders(cfg):
 
     loader_kwargs = {
         "num_workers": num_workers,
-        "pin_memory": True,
+        "pin_memory": torch.cuda.is_available(),
     }
     if num_workers > 0:
         loader_kwargs["persistent_workers"] = True

@@ -1,6 +1,5 @@
 numpy
 pandas
-matplotlib
 pyyaml
 tqdm
 scikit-learn
