@@ -1,0 +1,39 @@
+diff --git a/launch.py b/launch.py
+index bca4ae1..d102d91 100644
+--- a/launch.py
++++ b/launch.py
+@@ -186,9 +186,6 @@ def main(args, extras) -> None:
+                 dirpath=os.path.join(cfg.trial_dir, "ckpts"), **cfg.checkpoint
+             ),
+             LearningRateMonitor(logging_interval="step"),
+-            CodeSnapshotCallback(
+-                os.path.join(cfg.trial_dir, "code"), use_version=False
+-            ),
+             ConfigSnapshotCallback(
+                 args.config,
+                 cfg,
+@@ -196,6 +193,12 @@ def main(args, extras) -> None:
+                 use_version=False,
+             ),
+         ]
++        if cfg.save_code_snapshot:
++            callbacks += [
++                CodeSnapshotCallback(
++                    os.path.join(cfg.trial_dir, "code"), use_version=False
++                )
++            ]
+         if args.gradio:
+             callbacks += [
+                 ProgressCallback(save_path=os.path.join(cfg.trial_dir, "progress"))
+diff --git a/threestudio/utils/config.py b/threestudio/utils/config.py
+index 88a7d09..75cb7fb 100644
+--- a/threestudio/utils/config.py
++++ b/threestudio/utils/config.py
+@@ -57,6 +57,7 @@ class ExperimentConfig:
+     use_timestamp: bool = True
+     timestamp: Optional[str] = None
+     exp_root_dir: str = "outputs"
++    save_code_snapshot: bool = True
+ 
+     ### these shouldn't be set manually
+     exp_dir: str = "outputs/default"
