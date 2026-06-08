@@ -1,0 +1,10 @@
+.cache/
+__pycache__
+*.pyc
+
+dataset/
+dataset/360_extra_scenes
+dataset/360_v2
+dataset/360_extra_scenes.zip
+dataset/360_v2.zip
+dataset/object_A/images_raw

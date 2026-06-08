@@ -1,0 +1,8 @@
+{
+  "policy_path": "/mnt/data/haoyang/workspace/hw/final2/outputs/act_ABC/checkpoints/050000/pretrained_model",
+  "dataset_root": "/mnt/data/haoyang/workspace/hw/final2/dataset/calvin_task_ABC_D/calvin_task_ABC_D_lerobot_3_4",
+  "test_env": "D",
+  "evaluated_samples": 267373,
+  "valid_action_values": 58515765,
+  "normalized_action_l1": 0.4514813685623498
+}
