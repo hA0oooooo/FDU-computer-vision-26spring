@@ -1,0 +1,20 @@
+[submodule "final1/threestudio"]
+	path = final1/threestudio
+	url = https://github.com/threestudio-project/threestudio.git
+	ignore = dirty
+[submodule "final1/Magic123"]
+	path = final1/Magic123
+	url = https://github.com/guochengqian/Magic123.git
+	ignore = dirty
+[submodule "final1/2d-gaussian-splatting"]
+	path = final1/2d-gaussian-splatting
+	url = https://github.com/hbb1/2d-gaussian-splatting.git
+	ignore = dirty
+[submodule "final1/colmap"]
+	path = final1/colmap
+	url = https://github.com/colmap/colmap.git
+	ignore = dirty
+[submodule "final2/lerobot"]
+	path = final2/lerobot
+	url = https://github.com/huggingface/lerobot.git
+	ignore = dirty
