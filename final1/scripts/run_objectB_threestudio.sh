@@ -4,18 +4,16 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${PROJECT_ROOT}/scripts/timing.sh"
 THREESTUDIO_DIR="${PROJECT_ROOT}/threestudio"
-OBJECT_B_DIR="${PROJECT_ROOT}/dataset/object_B"
+OBJECT_B_NAME="${OBJECT_B_NAME:-object_B}"
+OBJECT_B_DIR="${PROJECT_ROOT}/dataset/${OBJECT_B_NAME}"
 GPU=1
 MAX_STEPS=12000
 SEED=42
 GUIDANCE_SCALE=75.0
 LAMBDA_SPARSITY=10.0
 
-# PROMPT="a zoomed out DSLR product photo of a single umbrella-shaped mushroom, one broad beige brown cap with subtle radial grooves, visible gills under the cap, one straight thick white stem with a small ring, full object, centered, clean silhouette, natural matte surface, detailed organic texture, plain background"
-# NEGATIVE_PROMPT="extra cap, extra stem, stacked body, multiple mushrooms, deformed, distorted, broken geometry, floating parts, messy background, cropped, blurry, text, watermark"
-
-PROMPT="a zoomed out DSLR product photo of a single yellow lemon with one or two green leaves, clearly visible bumpy peel texture, matte organic surface, full object, centered, clean silhouette, pure white background, uniform soft lighting, high-quality 3D model"
-NEGATIVE_PROMPT="${NEGATIVE_PROMPT:-}"
+PROMPT="${PROMPT:-a zoomed out DSLR product photo of a single yellow lemon with one or two green leaves, clearly visible bumpy peel texture, matte organic surface, full object, centered, clean silhouette, pure white background, uniform soft lighting, high-quality 3D model}"
+NEGATIVE_PROMPT="${NEGATIVE_PROMPT:-extra object, multiple objects, duplicate fruit, deformed, distorted, broken geometry, floating parts, messy background, cropped, blurry, text, watermark}"
 
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate cvpj1
@@ -41,13 +39,13 @@ rm -rf \
 
 cd "$THREESTUDIO_DIR"
 
-run_timed object_B threestudio_train "text-to-3D SDS optimization; max_steps=${MAX_STEPS}; seed=${SEED}" \
+run_timed "$OBJECT_B_NAME" threestudio_train "text-to-3D SDS optimization; max_steps=${MAX_STEPS}; seed=${SEED}" \
 env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
   --config configs/dreamfusion-sd.yaml \
   --train \
   --gpu 0 \
   seed=$SEED \
-  exp_root_dir=../dataset/object_B \
+  exp_root_dir="../dataset/${OBJECT_B_NAME}" \
   name=. \
   tag=. \
   use_timestamp=false \
@@ -76,7 +74,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
 # system.guidance.guidance_scale: reduces overly aggressive SDS guidance to improve geometry stability.
 # system.loss.lambda_sparsity: increases density sparsity to suppress bottom diffusion, floaters, and unnecessary volume density.
 
-run_timed object_B threestudio_export "export textured mesh from final checkpoint" \
+run_timed "$OBJECT_B_NAME" threestudio_export "export textured mesh from final checkpoint" \
 env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
   --config "${OBJECT_B_DIR}/configs/parsed.yaml" \
   --export \
