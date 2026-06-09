@@ -32,7 +32,7 @@ mkdir -p "$U2NET_HOME"
 
 cd "$PROJECT_ROOT"
 
-run_timed object_A preprocess "images_raw to transparent RGBA images" \
+run_timed object_A preprocess \
   python scripts/preprocess_image.py "$IMAGES_RAW_DIR" objectA
 
 # scripts/preprocess_image.py: reads original images from images_raw and overwrites matching transparent RGBA PNG files in images.
@@ -48,7 +48,7 @@ mkdir -p "$SPARSE_DIR"
 
 unset LD_LIBRARY_PATH
 
-run_timed object_A colmap_feature_extractor "extract local features from foreground images" \
+run_timed object_A colmap_feature_extractor \
 colmap feature_extractor \
   --database_path "$DATABASE_PATH" \
   --image_path "$IMAGES_DIR" \
@@ -64,7 +64,7 @@ colmap feature_extractor \
 # --FeatureExtraction.use_gpu: enables GPU feature extraction.
 # --FeatureExtraction.gpu_index: selects the physical GPU used by COLMAP feature extraction.
 
-run_timed object_A colmap_exhaustive_matcher "exhaustive pairwise feature matching" \
+run_timed object_A colmap_exhaustive_matcher \
 colmap exhaustive_matcher \
   --database_path "$DATABASE_PATH" \
   --FeatureMatching.use_gpu 1 \
@@ -74,7 +74,7 @@ colmap exhaustive_matcher \
 # --FeatureMatching.use_gpu: enables GPU feature matching.
 # --FeatureMatching.gpu_index: selects the physical GPU used by COLMAP feature matching.
 
-run_timed object_A colmap_mapper "estimate camera poses and sparse points" \
+run_timed object_A colmap_mapper \
 colmap mapper \
   --database_path "$DATABASE_PATH" \
   --image_path "$IMAGES_DIR" \
@@ -84,7 +84,7 @@ colmap mapper \
 # --image_path: reads the same transparent foreground PNG files used during feature extraction.
 # --output_path: writes camera poses and the sparse point cloud to sparse/0.
 
-run_timed object_A colmap_model_analyzer "summarize sparse reconstruction quality" \
+run_timed object_A colmap_model_analyzer \
 colmap model_analyzer \
   --path "${SPARSE_DIR}/0"
 
@@ -102,7 +102,7 @@ ensure_2dgs_alpha_patch
 
 cd "$GS_DIR"
 
-run_timed object_A 2dgs_train "train Object A 2D Gaussian Splatting" \
+run_timed object_A 2dgs_train \
 env CUDA_VISIBLE_DEVICES=$GPU python train.py \
   -s "$OBJECT_A_DIR" \
   -m "$OUTPUT_DIR" \
@@ -119,7 +119,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python train.py \
 # --test_iterations: evaluates the model at the same intermediate and final iterations.
 # --lambda_mask: constrains rendered opacity to the shoe alpha mask, which helps stabilize low-texture sole geometry.
 
-run_timed object_A 2dgs_render_export "render final views and export fuse meshes" \
+run_timed object_A 2dgs_render_export \
 env CUDA_VISIBLE_DEVICES=$GPU python render.py \
   -s "$OBJECT_A_DIR" \
   -m "$OUTPUT_DIR" \

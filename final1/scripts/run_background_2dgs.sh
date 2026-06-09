@@ -51,7 +51,7 @@ mkdir -p "$OUT_DIR"
 
 cd "$TWODGS_DIR"
 
-run_timed "background_${SCENE}" 2dgs_train "scene=${SCENE}; images=${IMAGE_DIR_NAME}" \
+run_timed "background_${SCENE}" 2dgs_train \
 env CUDA_VISIBLE_DEVICES=$GPU python train.py \
   -s "$SCENE_DIR" \
   -m "$OUT_DIR" \
@@ -64,7 +64,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python train.py \
 # --images: selects the image folder inside the scene; the script prefers images, then images_4, then images_2.
 # --depth_ratio 0: uses mean depth, which is usually more stable for unbounded scenes.
 
-run_timed "background_${SCENE}" 2dgs_render_export "scene=${SCENE}; unbounded mesh export" \
+run_timed "background_${SCENE}" 2dgs_render_export \
 env CUDA_VISIBLE_DEVICES=$GPU python render.py \
   -s "$SCENE_DIR" \
   -m "$OUT_DIR" \

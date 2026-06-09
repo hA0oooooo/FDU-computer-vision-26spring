@@ -39,7 +39,7 @@ rm -rf \
 
 cd "$THREESTUDIO_DIR"
 
-run_timed "$OBJECT_B_NAME" threestudio_train "text-to-3D SDS optimization; max_steps=${MAX_STEPS}; seed=${SEED}" \
+run_timed "$OBJECT_B_NAME" threestudio_train \
 env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
   --config configs/dreamfusion-sd.yaml \
   --train \
@@ -74,7 +74,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
 # system.guidance.guidance_scale: reduces overly aggressive SDS guidance to improve geometry stability.
 # system.loss.lambda_sparsity: increases density sparsity to suppress bottom diffusion, floaters, and unnecessary volume density.
 
-run_timed "$OBJECT_B_NAME" threestudio_export "export textured mesh from final checkpoint" \
+run_timed "$OBJECT_B_NAME" threestudio_export \
 env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
   --config "${OBJECT_B_DIR}/configs/parsed.yaml" \
   --export \
