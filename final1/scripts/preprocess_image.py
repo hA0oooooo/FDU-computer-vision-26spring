@@ -119,6 +119,12 @@ def apply_alpha_mode(alpha: Image.Image, threshold: int, alpha_mode: str) -> Ima
     return Image.fromarray(hard_alpha)
 
 
+def set_transparent_rgb(rgba: Image.Image, background=(255, 255, 255)) -> Image.Image:
+    rgba_arr = np.array(rgba)
+    rgba_arr[rgba_arr[:, :, 3] == 0, :3] = background
+    return Image.fromarray(rgba_arr, mode="RGBA")
+
+
 def preprocess_image(
     image_path: Path,
     foreground_path: Path,
@@ -143,6 +149,7 @@ def preprocess_image(
         )
 
     rgba.putalpha(apply_alpha_mode(rgba.getchannel("A"), threshold, alpha_mode))
+    rgba = set_transparent_rgb(rgba)
     rgba.save(foreground_path)
     return foreground_path
 

@@ -17,17 +17,17 @@ OBJECT_C_DIR="${PROJECT_ROOT}/dataset/${OBJECT_C_NAME}"
 IMAGE_DIR="${OBJECT_C_DIR}/images"
 INPUT_IMAGE="${INPUT_IMAGE:-}"
 if [ -z "$INPUT_IMAGE" ]; then
-  if [ -f "${IMAGE_DIR}/0001.jpg" ]; then
-    INPUT_IMAGE="${IMAGE_DIR}/0001.jpg"
-  elif [ -f "${IMAGE_DIR}/0001.png" ]; then
-    INPUT_IMAGE="${IMAGE_DIR}/0001.png"
-  elif [ -f "${IMAGE_DIR}/0001.jpeg" ]; then
-    INPUT_IMAGE="${IMAGE_DIR}/0001.jpeg"
-  else
-    echo "Input image not found under: $IMAGE_DIR" >&2
-    echo "Expected one of: 0001.jpg, 0001.png, 0001.jpeg" >&2
-    exit 1
-  fi
+  for candidate in "${IMAGE_DIR}/0001.jpg" "${IMAGE_DIR}/0001.png"; do
+    if [ -f "$candidate" ]; then
+      INPUT_IMAGE="$candidate"
+      break
+    fi
+  done
+fi
+if [ -z "$INPUT_IMAGE" ]; then
+  echo "Input image not found under: $IMAGE_DIR" >&2
+  echo "Expected one of: 0001.jpg, 0001.png" >&2
+  exit 1
 fi
 INPUT_STEM="$(basename "${INPUT_IMAGE%.*}")"
 FOREGROUND_IMAGE="${IMAGE_DIR}/${INPUT_STEM}_foreground.png"
@@ -42,13 +42,15 @@ LAMBDA_MASK=3
 COARSE_LAMBDA_2D=$(awk "BEGIN { print 1.0 * ${LAMBDA_2D_3D} }")
 FINE_LAMBDA_2D=$(awk "BEGIN { print 0.001 * ${LAMBDA_2D_3D} }")
 
-# TEXT_PROMPT="a high-resolution DSLR image of a single potted orchid plant with purple and white flowers,  \
-# broad green leaves, continuous thin dark branching stems visibly connecting every flower cluster to the plant, \
-# full object, centered, natural indoor plant texture"
+# object C -main
+TEXT_PROMPT="a high-resolution DSLR image of a single potted orchid plant with purple and white flowers,  \
+broad green leaves, continuous thin dark branching stems visibly connecting every flower cluster to the plant, \
+full object, centered, natural indoor plant texture"
 
-TEXT_PROMPT="a zoomed out DSLR product photo of a single Nongfu Spring mineral water bottle, red plastic bottle cap,  \
-transparent PET bottle body, red label, smooth glossy plastic material, full object, centered, clean silhouette,  \
-pure white background, uniform soft lighting, high-quality 3D model"
+# object C - another
+# TEXT_PROMPT="a zoomed out DSLR product photo of a single Nongfu Spring mineral water bottle, red plastic bottle cap,  \
+# transparent PET bottle body, red label, smooth glossy plastic material, full object, centered, clean silhouette,  \
+# pure white background, uniform soft lighting, high-quality 3D model"
 
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate cvpj1
