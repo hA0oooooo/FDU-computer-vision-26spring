@@ -1,0 +1,69 @@
+From 73b79711ac21b4a026f155c0b5cd58fc43a77234 Mon Sep 17 00:00:00 2001
+From: hA0 <140323471+hA0oooooo@users.noreply.github.com>
+Date: Tue, 9 Jun 2026 01:59:38 +0000
+Subject: [PATCH] Support alpha mask supervision
+
+---
+ arguments/__init__.py |  1 +
+ train.py              | 17 +++++++++++++++--
+ 2 files changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/arguments/__init__.py b/arguments/__init__.py
+index 2977a88..b3b5508 100644
+--- a/arguments/__init__.py
++++ b/arguments/__init__.py
+@@ -85,6 +85,7 @@ class OptimizationParams(ParamGroup):
+         self.lambda_dssim = 0.2
+         self.lambda_dist = 0.0
+         self.lambda_normal = 0.05
++        self.lambda_mask = 0.0
+         self.opacity_cull = 0.05
+ 
+         self.densification_interval = 100
+diff --git a/train.py b/train.py
+index 26631b8..f4bb4f3 100644
+--- a/train.py
++++ b/train.py
+@@ -28,6 +28,11 @@ try:
+ except ImportError:
+     TENSORBOARD_FOUND = False
+ 
++def composite_with_background(image, alpha_mask, background):
++    if alpha_mask is None:
++        return image
++    return image * alpha_mask + background[:, None, None] * (1.0 - alpha_mask)
++
+ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint):
+     first_iter = 0
+     tb_writer = prepare_output_and_logger(dataset)
+@@ -69,9 +74,12 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
+         render_pkg = render(viewpoint_cam, gaussians, pipe, background)
+         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
+         
+-        gt_image = viewpoint_cam.original_image.cuda()
++        gt_alpha_mask = viewpoint_cam.gt_alpha_mask
++        gt_image = composite_with_background(viewpoint_cam.original_image.cuda(), gt_alpha_mask, background)
+         Ll1 = l1_loss(image, gt_image)
+         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
++        if gt_alpha_mask is not None and opt.lambda_mask > 0:
++            loss += opt.lambda_mask * l1_loss(render_pkg["rend_alpha"], gt_alpha_mask.cuda())
+         
+         # regularization
+         lambda_normal = opt.lambda_normal if iteration > 7000 else 0.0
+@@ -210,7 +218,12 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
+                 for idx, viewpoint in enumerate(config['cameras']):
+                     render_pkg = renderFunc(viewpoint, scene.gaussians, *renderArgs)
+                     image = torch.clamp(render_pkg["render"], 0.0, 1.0).to("cuda")
+-                    gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
++                    gt_image = composite_with_background(
++                        viewpoint.original_image.to("cuda"),
++                        viewpoint.gt_alpha_mask,
++                        renderArgs[1],
++                    )
++                    gt_image = torch.clamp(gt_image, 0.0, 1.0)
+                     if tb_writer and (idx < 5):
+                         from utils.general_utils import colormap
+                         depth = render_pkg["surf_depth"]
+-- 
+2.34.1
+

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${PROJECT_ROOT}/scripts/timing.sh"
 TWODGS_DIR="${PROJECT_ROOT}/2d-gaussian-splatting"
 DATA_ROOT="${PROJECT_ROOT}/dataset/360_v2"
 
@@ -12,7 +13,7 @@ SCENE_DIR="${DATA_ROOT}/${SCENE}"
 OUT_DIR="${PROJECT_ROOT}/dataset/${SCENE}_2dgs_output"
 
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate cvpj
+conda activate cvpj1
 
 export CUDA_HOME=$CONDA_PREFIX
 export CUDA_PATH=$CONDA_PREFIX
@@ -50,7 +51,8 @@ mkdir -p "$OUT_DIR"
 
 cd "$TWODGS_DIR"
 
-CUDA_VISIBLE_DEVICES=$GPU python train.py \
+run_timed "background_${SCENE}" 2dgs_train "scene=${SCENE}; images=${IMAGE_DIR_NAME}" \
+env CUDA_VISIBLE_DEVICES=$GPU python train.py \
   -s "$SCENE_DIR" \
   -m "$OUT_DIR" \
   --images "$IMAGE_DIR_NAME" \
@@ -62,7 +64,8 @@ CUDA_VISIBLE_DEVICES=$GPU python train.py \
 # --images: selects the image folder inside the scene; the script prefers images, then images_4, then images_2.
 # --depth_ratio 0: uses mean depth, which is usually more stable for unbounded scenes.
 
-CUDA_VISIBLE_DEVICES=$GPU python render.py \
+run_timed "background_${SCENE}" 2dgs_render_export "scene=${SCENE}; unbounded mesh export" \
+env CUDA_VISIBLE_DEVICES=$GPU python render.py \
   -s "$SCENE_DIR" \
   -m "$OUT_DIR" \
   --images "$IMAGE_DIR_NAME" \

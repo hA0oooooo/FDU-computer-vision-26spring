@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${PROJECT_ROOT}/scripts/timing.sh"
 OBJECT_A_DIR="${PROJECT_ROOT}/dataset/object_A"
 IMAGES_RAW_DIR="${OBJECT_A_DIR}/images_raw"
 IMAGES_DIR="${OBJECT_A_DIR}/images"
@@ -13,9 +14,17 @@ GPU=0
 LAMBDA_MASK=0.1
 MESH_VOXEL_SIZE=0.006
 MESH_SDF_TRUNC=0.024
+TWODGS_PATCH="${PROJECT_ROOT}/patches/2d-gaussian-splatting-alpha-mask.patch"
+
+ensure_2dgs_alpha_patch() {
+  if grep -q "lambda_mask" "${GS_DIR}/arguments/__init__.py"; then
+    return
+  fi
+  git -C "$GS_DIR" apply "$TWODGS_PATCH"
+}
 
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate cvpj
+conda activate cvpj1
 export NUMBA_CACHE_DIR=/tmp/numba_cache
 export U2NET_HOME="${PROJECT_ROOT}/.cache/rembg"
 mkdir -p "$NUMBA_CACHE_DIR"
@@ -23,7 +32,8 @@ mkdir -p "$U2NET_HOME"
 
 cd "$PROJECT_ROOT"
 
-python scripts/preprocess_image.py "$IMAGES_RAW_DIR" objectA
+run_timed object_A preprocess "images_raw to transparent RGBA images" \
+  python scripts/preprocess_image.py "$IMAGES_RAW_DIR" objectA
 
 # scripts/preprocess_image.py: reads original images from images_raw and overwrites matching transparent RGBA PNG files in images.
 # objectA: uses BRIA-RMBG 2.0, keeps only the largest foreground component, and writes a hard alpha mask.
@@ -38,6 +48,7 @@ mkdir -p "$SPARSE_DIR"
 
 unset LD_LIBRARY_PATH
 
+run_timed object_A colmap_feature_extractor "extract local features from foreground images" \
 colmap feature_extractor \
   --database_path "$DATABASE_PATH" \
   --image_path "$IMAGES_DIR" \
@@ -53,6 +64,7 @@ colmap feature_extractor \
 # --FeatureExtraction.use_gpu: enables GPU feature extraction.
 # --FeatureExtraction.gpu_index: selects the physical GPU used by COLMAP feature extraction.
 
+run_timed object_A colmap_exhaustive_matcher "exhaustive pairwise feature matching" \
 colmap exhaustive_matcher \
   --database_path "$DATABASE_PATH" \
   --FeatureMatching.use_gpu 1 \
@@ -62,6 +74,7 @@ colmap exhaustive_matcher \
 # --FeatureMatching.use_gpu: enables GPU feature matching.
 # --FeatureMatching.gpu_index: selects the physical GPU used by COLMAP feature matching.
 
+run_timed object_A colmap_mapper "estimate camera poses and sparse points" \
 colmap mapper \
   --database_path "$DATABASE_PATH" \
   --image_path "$IMAGES_DIR" \
@@ -71,6 +84,7 @@ colmap mapper \
 # --image_path: reads the same transparent foreground PNG files used during feature extraction.
 # --output_path: writes camera poses and the sparse point cloud to sparse/0.
 
+run_timed object_A colmap_model_analyzer "summarize sparse reconstruction quality" \
 colmap model_analyzer \
   --path "${SPARSE_DIR}/0"
 
@@ -84,9 +98,12 @@ export LD_LIBRARY_PATH=$CUDA_HOME/lib:$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}
 export TORCH_CUDA_ARCH_LIST="8.6"
 export TCNN_CUDA_ARCHITECTURES=86
 
+ensure_2dgs_alpha_patch
+
 cd "$GS_DIR"
 
-CUDA_VISIBLE_DEVICES=$GPU python train.py \
+run_timed object_A 2dgs_train "train Object A 2D Gaussian Splatting" \
+env CUDA_VISIBLE_DEVICES=$GPU python train.py \
   -s "$OBJECT_A_DIR" \
   -m "$OUTPUT_DIR" \
   --iterations 30000 \
@@ -102,7 +119,8 @@ CUDA_VISIBLE_DEVICES=$GPU python train.py \
 # --test_iterations: evaluates the model at the same intermediate and final iterations.
 # --lambda_mask: constrains rendered opacity to the shoe alpha mask, which helps stabilize low-texture sole geometry.
 
-CUDA_VISIBLE_DEVICES=$GPU python render.py \
+run_timed object_A 2dgs_render_export "render final views and export fuse meshes" \
+env CUDA_VISIBLE_DEVICES=$GPU python render.py \
   -s "$OBJECT_A_DIR" \
   -m "$OUTPUT_DIR" \
   --iteration 30000 \
