@@ -12,8 +12,16 @@ SEED=42
 GUIDANCE_SCALE=75.0
 LAMBDA_SPARSITY=10.0
 
+# PROMPT="a zoomed out DSLR product photo of a single umbrella-shaped mushroom, one broad beige brown cap with subtle radial grooves, visible gills under the cap, one straight thick white stem with a small ring, full object, centered, clean silhouette, natural matte surface, detailed organic texture, plain background"
+# NEGATIVE_PROMPT="extra cap, extra stem, stacked body, multiple mushrooms, deformed, distorted, broken geometry, floating parts, messy background, cropped, blurry, text, watermark"
+
 PROMPT="${PROMPT:-a zoomed out DSLR product photo of a single yellow lemon with one or two green leaves, clearly visible bumpy peel texture, matte organic surface, full object, centered, clean silhouette, pure white background, uniform soft lighting, high-quality 3D model}"
-NEGATIVE_PROMPT="${NEGATIVE_PROMPT:-extra object, multiple objects, duplicate fruit, deformed, distorted, broken geometry, floating parts, messy background, cropped, blurry, text, watermark}"
+NEGATIVE_PROMPT="${NEGATIVE_PROMPT:-}"
+
+NEGATIVE_PROMPT_ARGS=()
+if [ -n "$NEGATIVE_PROMPT" ]; then
+  NEGATIVE_PROMPT_ARGS=(system.prompt_processor.negative_prompt="$NEGATIVE_PROMPT")
+fi
 
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate cvpj1
@@ -53,7 +61,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
   system.prompt_processor.pretrained_model_name_or_path="stable-diffusion-v1-5/stable-diffusion-v1-5" \
   system.guidance.pretrained_model_name_or_path="stable-diffusion-v1-5/stable-diffusion-v1-5" \
   system.prompt_processor.prompt="$PROMPT" \
-  system.prompt_processor.negative_prompt="$NEGATIVE_PROMPT" \
+  "${NEGATIVE_PROMPT_ARGS[@]}" \
   system.guidance.guidance_scale=$GUIDANCE_SCALE \
   system.loss.lambda_sparsity=$LAMBDA_SPARSITY
 
