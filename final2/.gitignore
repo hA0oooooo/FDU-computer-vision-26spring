@@ -6,3 +6,7 @@ checkpoints
 
 dataset/
 .hf_datasets
+
+logs/
+wandb/
+outputs/

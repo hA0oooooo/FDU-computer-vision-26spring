@@ -1,0 +1,8 @@
+gpu_id: 2
+run_name: act_B
+step: "050000"
+dataset_repo: calvin_task_ABC_D_lerobot_3_4
+dataset_root: dataset/calvin_task_ABC_D/calvin_task_ABC_D_lerobot_3_4
+batch_size: 64
+num_workers: 4
+tolerance_s: 0.001
