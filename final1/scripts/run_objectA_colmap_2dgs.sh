@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${PROJECT_ROOT}/scripts/timing.sh"
+source "${PROJECT_ROOT}/scripts/wandb.sh"
 OBJECT_A_DIR="${PROJECT_ROOT}/dataset/object_A"
 IMAGES_RAW_DIR="${OBJECT_A_DIR}/images_raw"
 IMAGES_DIR="${OBJECT_A_DIR}/images"
@@ -111,6 +112,8 @@ env CUDA_VISIBLE_DEVICES=$GPU python train.py \
   --test_iterations 7000 30000 \
   --lambda_mask "$LAMBDA_MASK"
 
+log_tensorboard_to_wandb object_A "$OUTPUT_DIR"
+
 # CUDA_VISIBLE_DEVICES: exposes one physical GPU to 2DGS as logical CUDA device 0.
 # -s: reads images and sparse/0 from the Object A scene directory.
 # -m: writes checkpoints, logs, and training artifacts to 2dgs_output.
@@ -118,6 +121,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python train.py \
 # --save_iterations: saves intermediate and final point-cloud checkpoints.
 # --test_iterations: evaluates the model at the same intermediate and final iterations.
 # --lambda_mask: constrains rendered opacity to the shoe alpha mask, which helps stabilize low-texture sole geometry.
+# log_tensorboard_to_wandb: uploads 2DGS TensorBoard loss and validation metrics to WandB when WANDB_ENABLE=1.
 
 run_timed object_A 2dgs_render_export \
 env CUDA_VISIBLE_DEVICES=$GPU python render.py \

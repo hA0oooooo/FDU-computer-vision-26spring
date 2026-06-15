@@ -1,0 +1,56 @@
+diff --git a/main.py b/main.py
+index 4e60676..2822f1a 100644
+--- a/main.py
++++ b/main.py
+@@ -43,6 +43,14 @@ parser.add_argument('--log_every', type=int, default=20,
+                     help="log losses every X iterations")
+ parser.add_argument('--use_wandb', action='store_true',
+                     help="log online into wandb")
++parser.add_argument('--wandb_entity', type=str,
++                    default=os.environ.get("WANDB_ENTITY", "fudan-university-CS50028"),
++                    help="wandb entity for online logging")
++parser.add_argument('--wandb_project', type=str,
++                    default=os.environ.get("WANDB_PROJECT", "final-project"),
++                    help="wandb project for online logging")
++parser.add_argument('--wandb_name', type=str, default=None,
++                    help="wandb run name")
+ 
+ # guidance
+ parser.add_argument('--guidance', type=str, nargs='*',
+@@ -348,7 +356,28 @@ def _parse_args():
+     args_text = yaml.safe_dump(args.__dict__, default_flow_style=False)
+     return args, args_text
+ 
+ 
++def init_wandb(opt, args_text):
++    if not opt.use_wandb:
++        return
++
++    try:
++        import atexit
++        import wandb
++
++        run_name = opt.wandb_name or os.path.basename(opt.workspace) or "magic123"
++        run = wandb.init(
++            entity=opt.wandb_entity,
++            project=opt.wandb_project,
++            name=run_name,
++            config=yaml.safe_load(args_text),
++            sync_tensorboard=True,
++        )
++        atexit.register(run.finish)
++    except Exception as exc:
++        logger.warning(f"WandB initialization failed; continuing without WandB: {exc}")
++
++
+ if __name__ == '__main__':
+     args, args_text = _parse_args()
+     opt = edict(vars(args))
+@@ -507,6 +536,7 @@ if __name__ == '__main__':
+         logger.info(f'Got sdf from Shap-E init...')
+ 
+     logger.info(model)
++    init_wandb(opt, args_text)
+ 
+     if opt.six_views:
+         guidance = None  # no need to load guidance model at test

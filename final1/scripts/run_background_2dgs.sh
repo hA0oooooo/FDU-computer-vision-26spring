@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${PROJECT_ROOT}/scripts/timing.sh"
+source "${PROJECT_ROOT}/scripts/wandb.sh"
 TWODGS_DIR="${PROJECT_ROOT}/2d-gaussian-splatting"
 DATA_ROOT="${PROJECT_ROOT}/dataset/360_v2"
 
@@ -58,11 +59,14 @@ env CUDA_VISIBLE_DEVICES=$GPU python train.py \
   --images "$IMAGE_DIR_NAME" \
   --depth_ratio 0
 
+log_tensorboard_to_wandb "background_${SCENE}" "$OUT_DIR"
+
 # SCENE: selects one scene under dataset/360_v2, for example garden, counter, or bicycle.
 # SCENE_DIR: reads the selected Mip-NeRF 360 scene from dataset/360_v2/<scene>.
 # OUT_DIR: writes one 2DGS background reconstruction to dataset/<scene>_2dgs_output.
 # --images: selects the image folder inside the scene; the script prefers images, then images_4, then images_2.
 # --depth_ratio 0: uses mean depth, which is usually more stable for unbounded scenes.
+# log_tensorboard_to_wandb: uploads 2DGS TensorBoard loss and validation metrics to WandB when WANDB_ENABLE=1.
 
 run_timed "background_${SCENE}" 2dgs_render_export \
 env CUDA_VISIBLE_DEVICES=$GPU python render.py \

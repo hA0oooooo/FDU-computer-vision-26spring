@@ -11,7 +11,9 @@ LAMBDA_2D_3D="${1:-1.0}"
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${PROJECT_ROOT}/scripts/timing.sh"
+source "${PROJECT_ROOT}/scripts/wandb.sh"
 MAGIC123_DIR="${PROJECT_ROOT}/Magic123"
+MAGIC123_PATCH="${PROJECT_ROOT}/patches/Magic123-wandb.patch"
 OBJECT_C_NAME="${OBJECT_C_NAME:-object_C}"
 OBJECT_C_DIR="${PROJECT_ROOT}/dataset/${OBJECT_C_NAME}"
 IMAGE_DIR="${OBJECT_C_DIR}/images"
@@ -36,21 +38,44 @@ OUT_ROOT="${OBJECT_C_DIR}/magic123_output"
 COARSE_WS="${OUT_ROOT}/object_C_coarse"
 FINE_WS="${OUT_ROOT}/object_C_fine"
 FIXED_COARSE_CKPT="${COARSE_WS}/checkpoints/object_C_coarse_latest.pth"
-GPU=2
+GPU=1
 LAMBDA_MASK=3
 
 COARSE_LAMBDA_2D=$(awk "BEGIN { print 1.0 * ${LAMBDA_2D_3D} }")
 FINE_LAMBDA_2D=$(awk "BEGIN { print 0.001 * ${LAMBDA_2D_3D} }")
+
+ensure_magic123_wandb_patch() {
+  if grep -q "wandb_entity" "${MAGIC123_DIR}/main.py"; then
+    return
+  fi
+  git -C "$MAGIC123_DIR" apply "$MAGIC123_PATCH"
+}
 
 # object C -main
 TEXT_PROMPT="a high-resolution DSLR image of a single potted orchid plant with purple and white flowers,  \
 broad green leaves, continuous thin dark branching stems visibly connecting every flower cluster to the plant, \
 full object, centered, natural indoor plant texture"
 
-# object C - another
-# TEXT_PROMPT="a zoomed out DSLR product photo of a single Nongfu Spring mineral water bottle, red plastic bottle cap,  \
-# transparent PET bottle body, red label, smooth glossy plastic material, full object, centered, clean silhouette,  \
-# pure white background, uniform soft lighting, high-quality 3D model"
+# # object C - another
+# TEXT_PROMPT="Front-angled view of a Yamaha dreadnought acoustic guitar, solid natural spruce top, dark rosewood sides and back, black pickguard with red tortoiseshell pattern, dark brown bridge and saddle, six metal strings, chrome tuning pegs, dark fretboard with dot inlays, polished wood texture, no scratches or damage, pure white background, soft even lighting, photorealistic high-detail 3D model"
+
+COARSE_WANDB_ARGS=()
+FINE_WANDB_ARGS=()
+if wandb_enabled; then
+  setup_wandb_env
+  COARSE_WANDB_ARGS=(
+    --use_wandb
+    --wandb_entity "$WANDB_ENTITY"
+    --wandb_project "$WANDB_PROJECT"
+    --wandb_name "${OBJECT_C_NAME}_coarse"
+  )
+  FINE_WANDB_ARGS=(
+    --use_wandb
+    --wandb_entity "$WANDB_ENTITY"
+    --wandb_project "$WANDB_PROJECT"
+    --wandb_name "${OBJECT_C_NAME}_fine"
+  )
+fi
 
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate cvpj1
@@ -101,6 +126,7 @@ run_timed "$OBJECT_C_NAME" preprocess_foreground \
 # objectC: uses BRIA-RMBG 2.0 and keeps every foreground component so orchid flowers and stems are not discarded as cleanup fragments.
 
 cd "$MAGIC123_DIR"
+ensure_magic123_wandb_patch
 
 run_timed "$OBJECT_C_NAME" magic123_preprocess_rgba_depth \
 env CUDA_VISIBLE_DEVICES=$GPU python preprocess_image.py \
@@ -126,7 +152,8 @@ env CUDA_VISIBLE_DEVICES=$GPU python main.py -O \
   --normal_iter_ratio 0.2 \
   --t_range 0.2 0.6 \
   --bg_radius -1 \
-  --save_mesh
+  --save_mesh \
+  "${COARSE_WANDB_ARGS[@]}"
 
 # CUDA_VISIBLE_DEVICES: exposes one physical GPU to the coarse Magic123 stage.
 # -O: enables the default accelerated training options.
@@ -146,6 +173,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python main.py -O \
 # --t_range: limits diffusion timesteps used by the coarse stage.
 # --bg_radius: disables the learned background model.
 # --save_mesh: exports the coarse Mesh after optimization.
+# --use_wandb/--wandb_*: records Magic123 coarse TensorBoard scalars to WandB when WANDB_ENABLE=1.
 
 LATEST_COARSE_CKPT=$(ls -t "${COARSE_WS}"/checkpoints/*.pth | head -n 1)
 cp "$LATEST_COARSE_CKPT" "$FIXED_COARSE_CKPT"
@@ -171,7 +199,8 @@ env CUDA_VISIBLE_DEVICES=$GPU python main.py -O \
   --lambda_rgb 8 \
   --lambda_mask "$LAMBDA_MASK" \
   --bg_radius -1 \
-  --save_mesh
+  --save_mesh \
+  "${FINE_WANDB_ARGS[@]}"
 
 # CUDA_VISIBLE_DEVICES: exposes one physical GPU to the fine Magic123 stage.
 # -O: enables the default accelerated training options.
@@ -192,3 +221,4 @@ env CUDA_VISIBLE_DEVICES=$GPU python main.py -O \
 # --lambda_mask: strengthens the known-view alpha constraint so flower clusters remain connected to their stems.
 # --bg_radius: disables the learned background model.
 # --save_mesh: exports the final OBJ, MTL, and texture files.
+# --use_wandb/--wandb_*: records Magic123 fine TensorBoard scalars to WandB when WANDB_ENABLE=1.

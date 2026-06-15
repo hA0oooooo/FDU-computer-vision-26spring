@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${PROJECT_ROOT}/scripts/timing.sh"
+source "${PROJECT_ROOT}/scripts/wandb.sh"
 THREESTUDIO_DIR="${PROJECT_ROOT}/threestudio"
 OBJECT_B_NAME="${OBJECT_B_NAME:-object_B}"
 OBJECT_B_DIR="${PROJECT_ROOT}/dataset/${OBJECT_B_NAME}"
@@ -16,13 +17,23 @@ LAMBDA_SPARSITY=10.0
 PROMPT="a zoomed out DSLR product photo of a single umbrella-shaped mushroom, one broad beige brown cap with subtle radial grooves, visible gills under the cap, one straight thick white stem with a small ring, full object, centered, clean silhouette, natural matte surface, detailed organic texture, plain background"
 NEGATIVE_PROMPT="extra cap, extra stem, stacked body, multiple mushrooms, deformed, distorted, broken geometry, floating parts, messy background, cropped, blurry, text, watermark"
 
-# object B - another
-# PROMPT="${PROMPT:-a zoomed out DSLR product photo of a single yellow lemon with one or two green leaves, clearly visible bumpy peel texture, matte organic surface, full object, centered, clean silhouette, pure white background, uniform soft lighting, high-quality 3D model}"
-# NEGATIVE_PROMPT="${NEGATIVE_PROMPT:-}"
+# # object B - another
+# PROMPT="a zoomed out DSLR product photo of a single front-facing puppy plush toy, one round head, one short muzzle, two long floppy ears, one compact solid bean-shaped body, two small front paws visible, rear legs hidden, soft light brown fabric, full object, centered, clean silhouette, opaque solid shape, plain white background"
+# NEGATIVE_PROMPT="multiple dogs, duplicate head, second face, face on back, extra muzzle, extra ears, extra paws, many legs, side view, hollow body, holes, transparent body, missing torso, dust, fur cloud, floating debris, distorted anatomy, broken shape, cropped, blurry, cartoon, text, watermark"
 
 NEGATIVE_PROMPT_ARGS=()
 if [ -n "$NEGATIVE_PROMPT" ]; then
   NEGATIVE_PROMPT_ARGS=(system.prompt_processor.negative_prompt="$NEGATIVE_PROMPT")
+fi
+
+WANDB_ARGS=()
+if wandb_enabled; then
+  setup_wandb_env
+  WANDB_ARGS=(
+    system.loggers.wandb.enable=true
+    system.loggers.wandb.project="$WANDB_PROJECT"
+    system.loggers.wandb.name="$OBJECT_B_NAME"
+  )
 fi
 
 source ~/miniconda3/etc/profile.d/conda.sh
@@ -65,7 +76,8 @@ env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
   system.prompt_processor.prompt="$PROMPT" \
   "${NEGATIVE_PROMPT_ARGS[@]}" \
   system.guidance.guidance_scale=$GUIDANCE_SCALE \
-  system.loss.lambda_sparsity=$LAMBDA_SPARSITY
+  system.loss.lambda_sparsity=$LAMBDA_SPARSITY \
+  "${WANDB_ARGS[@]}"
 
 # CUDA_VISIBLE_DEVICES: exposes one physical GPU to threestudio as logical CUDA device 0.
 # --config: selects the DreamFusion Stable Diffusion configuration.
@@ -83,6 +95,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
 # system.prompt_processor.negative_prompt: discourages extra caps, extra stems, stacked forms, and broken geometry.
 # system.guidance.guidance_scale: reduces overly aggressive SDS guidance to improve geometry stability.
 # system.loss.lambda_sparsity: increases density sparsity to suppress bottom diffusion, floaters, and unnecessary volume density.
+# system.loggers.wandb.*: records threestudio loss, validation images, and videos to WandB when WANDB_ENABLE=1.
 
 run_timed "$OBJECT_B_NAME" threestudio_export \
 env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
