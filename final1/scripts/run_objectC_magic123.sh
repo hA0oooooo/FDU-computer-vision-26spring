@@ -1,31 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ "$#" -gt 1 ]; then
-  echo "Usage: bash scripts/run_objectC_magic123.sh [lambda_2d_3d]" >&2
-  echo "Example: bash scripts/run_objectC_magic123.sh 0.5" >&2
-  exit 2
-fi
-
-LAMBDA_2D_3D="${1:-1.0}"
-
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${PROJECT_ROOT}/scripts/timing.sh"
 source "${PROJECT_ROOT}/scripts/wandb.sh"
 MAGIC123_DIR="${PROJECT_ROOT}/Magic123"
-MAGIC123_PATCH="${PROJECT_ROOT}/patches/Magic123-wandb.patch"
-OBJECT_C_NAME="${OBJECT_C_NAME:-object_C}"
+OBJECT_C_NAME="object_C"
 OBJECT_C_DIR="${PROJECT_ROOT}/dataset/${OBJECT_C_NAME}"
 IMAGE_DIR="${OBJECT_C_DIR}/images"
-INPUT_IMAGE="${INPUT_IMAGE:-}"
-if [ -z "$INPUT_IMAGE" ]; then
-  for candidate in "${IMAGE_DIR}/0001.jpg" "${IMAGE_DIR}/0001.png"; do
-    if [ -f "$candidate" ]; then
-      INPUT_IMAGE="$candidate"
-      break
-    fi
-  done
-fi
+INPUT_IMAGE=""
+for candidate in "${IMAGE_DIR}/0001.jpg" "${IMAGE_DIR}/0001.png"; do
+  if [ -f "$candidate" ]; then
+    INPUT_IMAGE="$candidate"
+    break
+  fi
+done
 if [ -z "$INPUT_IMAGE" ]; then
   echo "Input image not found under: $IMAGE_DIR" >&2
   echo "Expected one of: 0001.jpg, 0001.png" >&2
@@ -38,47 +27,30 @@ OUT_ROOT="${OBJECT_C_DIR}/magic123_output"
 COARSE_WS="${OUT_ROOT}/object_C_coarse"
 FINE_WS="${OUT_ROOT}/object_C_fine"
 FIXED_COARSE_CKPT="${COARSE_WS}/checkpoints/object_C_coarse_latest.pth"
-GPU=1
+GPU=3
+MAX_STEPS=10000
+LAMBDA_2D_3D=1.0
 LAMBDA_MASK=3
 
 COARSE_LAMBDA_2D=$(awk "BEGIN { print 1.0 * ${LAMBDA_2D_3D} }")
 FINE_LAMBDA_2D=$(awk "BEGIN { print 0.001 * ${LAMBDA_2D_3D} }")
-
-ensure_magic123_wandb_patch() {
-  if grep -q "wandb_entity" "${MAGIC123_DIR}/main.py"; then
-    return
-  fi
-  git -C "$MAGIC123_DIR" apply "$MAGIC123_PATCH"
-}
 
 # object C -main
 TEXT_PROMPT="a high-resolution DSLR image of a single potted orchid plant with purple and white flowers,  \
 broad green leaves, continuous thin dark branching stems visibly connecting every flower cluster to the plant, \
 full object, centered, natural indoor plant texture"
 
-# # object C - another
-# TEXT_PROMPT="Front-angled view of a Yamaha dreadnought acoustic guitar, solid natural spruce top, dark rosewood sides and back, black pickguard with red tortoiseshell pattern, dark brown bridge and saddle, six metal strings, chrome tuning pegs, dark fretboard with dot inlays, polished wood texture, no scratches or damage, pure white background, soft even lighting, photorealistic high-detail 3D model"
-
-COARSE_WANDB_ARGS=()
-FINE_WANDB_ARGS=()
-if wandb_enabled; then
-  setup_wandb_env
-  COARSE_WANDB_ARGS=(
-    --use_wandb
-    --wandb_entity "$WANDB_ENTITY"
-    --wandb_project "$WANDB_PROJECT"
-    --wandb_name "${OBJECT_C_NAME}_coarse"
-  )
-  FINE_WANDB_ARGS=(
-    --use_wandb
-    --wandb_entity "$WANDB_ENTITY"
-    --wandb_project "$WANDB_PROJECT"
-    --wandb_name "${OBJECT_C_NAME}_fine"
-  )
-fi
-
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate cvpj1
+
+export http_proxy=http://127.0.0.1:9999
+export https_proxy=http://127.0.0.1:9999
+export HTTP_PROXY=http://127.0.0.1:9999
+export HTTPS_PROXY=http://127.0.0.1:9999
+export HF_HOME=/mnt/data/haoyang/.cache/huggingface
+export TRANSFORMERS_CACHE=/mnt/data/haoyang/.cache/huggingface/transformers
+export HF_HUB_CACHE=/mnt/data/haoyang/.cache/huggingface/hub
+unset HF_HUB_OFFLINE TRANSFORMERS_OFFLINE DIFFUSERS_OFFLINE
 
 export NUMBA_CACHE_DIR=/tmp/numba_cache
 export U2NET_HOME="${PROJECT_ROOT}/.cache/rembg"
@@ -114,7 +86,7 @@ rm -rf "$COARSE_WS" "$FINE_WS"
 mkdir -p "$OUT_ROOT"
 
 # LAMBDA_2D_3D: controls the paper's lambda_2D/3D ratio; 1.0 is the recommended balanced point.
-# COARSE_WS: removed before training so the coarse stage cannot resume an incompatible earlier asset.
+# COARSE_WS: removed before full training so the coarse stage cannot resume an incompatible earlier asset.
 # FINE_WS: removed before training so the fine stage cannot mix Mesh artifacts from an earlier asset.
 
 cd "$PROJECT_ROOT"
@@ -126,7 +98,6 @@ run_timed "$OBJECT_C_NAME" preprocess_foreground \
 # objectC: uses BRIA-RMBG 2.0 and keeps every foreground component so orchid flowers and stems are not discarded as cleanup fragments.
 
 cd "$MAGIC123_DIR"
-ensure_magic123_wandb_patch
 
 run_timed "$OBJECT_C_NAME" magic123_preprocess_rgba_depth \
 env CUDA_VISIBLE_DEVICES=$GPU python preprocess_image.py \
@@ -142,7 +113,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python main.py -O \
   --image "$RGBA_IMAGE" \
   --workspace "$COARSE_WS" \
   --optim adam \
-  --iters 5000 \
+  --iters "$MAX_STEPS" \
   --guidance SD zero123 \
   --lambda_guidance "$COARSE_LAMBDA_2D" 40 \
   --guidance_scale 100 5 \
@@ -152,8 +123,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python main.py -O \
   --normal_iter_ratio 0.2 \
   --t_range 0.2 0.6 \
   --bg_radius -1 \
-  --save_mesh \
-  "${COARSE_WANDB_ARGS[@]}"
+  --save_mesh
 
 # CUDA_VISIBLE_DEVICES: exposes one physical GPU to the coarse Magic123 stage.
 # -O: enables the default accelerated training options.
@@ -162,7 +132,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python main.py -O \
 # --image: reads rgba.png generated from the transparent foreground image.
 # --workspace: writes coarse checkpoints, logs, validation images, and the initial Mesh.
 # --optim: selects the Adam optimizer.
-# --iters: runs 5000 coarse optimization iterations.
+# --iters: runs MAX_STEPS coarse optimization iterations.
 # --guidance: combines Stable Diffusion 2D guidance with Zero123 3D guidance.
 # --lambda_guidance: sets SD and Zero123 loss weights; the first value is scaled by lambda_2d_3d.
 # --guidance_scale: sets classifier-free guidance scales for SD and Zero123.
@@ -173,7 +143,6 @@ env CUDA_VISIBLE_DEVICES=$GPU python main.py -O \
 # --t_range: limits diffusion timesteps used by the coarse stage.
 # --bg_radius: disables the learned background model.
 # --save_mesh: exports the coarse Mesh after optimization.
-# --use_wandb/--wandb_*: records Magic123 coarse TensorBoard scalars to WandB when WANDB_ENABLE=1.
 
 LATEST_COARSE_CKPT=$(ls -t "${COARSE_WS}"/checkpoints/*.pth | head -n 1)
 cp "$LATEST_COARSE_CKPT" "$FIXED_COARSE_CKPT"
@@ -189,7 +158,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python main.py -O \
   --workspace "$FINE_WS" \
   --dmtet \
   --init_ckpt "$FIXED_COARSE_CKPT" \
-  --iters 5000 \
+  --iters "$MAX_STEPS" \
   --optim adam \
   --known_view_interval 2 \
   --latent_iter_ratio 0 \
@@ -199,8 +168,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python main.py -O \
   --lambda_rgb 8 \
   --lambda_mask "$LAMBDA_MASK" \
   --bg_radius -1 \
-  --save_mesh \
-  "${FINE_WANDB_ARGS[@]}"
+  --save_mesh
 
 # CUDA_VISIBLE_DEVICES: exposes one physical GPU to the fine Magic123 stage.
 # -O: enables the default accelerated training options.
@@ -210,7 +178,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python main.py -O \
 # --workspace: writes fine checkpoints, logs, validation images, and the final textured Mesh.
 # --dmtet: refines an explicit DMTet Mesh representation.
 # --init_ckpt: initializes fine optimization from the completed coarse checkpoint.
-# --iters: runs 5000 fine optimization iterations.
+# --iters: runs MAX_STEPS fine optimization iterations.
 # --optim: selects the Adam optimizer.
 # --known_view_interval: constrains optimization with the input view every two iterations to preserve thin stems.
 # --latent_iter_ratio: disables latent-only warmup iterations.
@@ -221,4 +189,97 @@ env CUDA_VISIBLE_DEVICES=$GPU python main.py -O \
 # --lambda_mask: strengthens the known-view alpha constraint so flower clusters remain connected to their stems.
 # --bg_radius: disables the learned background model.
 # --save_mesh: exports the final OBJ, MTL, and texture files.
-# --use_wandb/--wandb_*: records Magic123 fine TensorBoard scalars to WandB when WANDB_ENABLE=1.
+
+log_metrics_to_wandb "${OBJECT_C_NAME}_coarse" --profile magic123 "${COARSE_WS}/run"
+log_metrics_to_wandb "${OBJECT_C_NAME}_fine" --profile magic123 "${FINE_WS}/run"
+
+cd "$PROJECT_ROOT"
+
+run_timed "$OBJECT_C_NAME" magic123_plot_ema \
+python - <<'PY'
+from pathlib import Path
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+
+
+REPORT_DIR = Path("report")
+COARSE_RUN = Path("dataset/object_C/magic123_output/object_C_coarse/run")
+FINE_RUN = Path("dataset/object_C/magic123_output/object_C_fine/run")
+
+METRICS = {
+    "train/loss": ("objectC_loss_total.png", "Object C Magic123 Loss Total", "magic123/loss_total"),
+    "train/loss_rgb": ("objectC_loss_rgb.png", "Object C Magic123 Loss RGB", "magic123/loss_rgb"),
+    "train/loss_mask": ("objectC_loss_mask.png", "Object C Magic123 Loss Mask", "magic123/loss_mask"),
+}
+
+
+def event_dirs(root):
+    if not root.exists():
+        return []
+    return sorted({event.parent for event in root.rglob("events.out.tfevents*")})
+
+
+def read_scalars(root, tag):
+    values = []
+    for event_dir in event_dirs(root):
+        accumulator = EventAccumulator(str(event_dir), size_guidance={"scalars": 0})
+        accumulator.Reload()
+        if tag not in accumulator.Tags().get("scalars", []):
+            continue
+        values.extend((scalar.step, scalar.value) for scalar in accumulator.Scalars(tag))
+    values.sort(key=lambda item: item[0])
+    return values
+
+
+def ema(values, alpha=0.15):
+    smoothed = []
+    current = None
+    for value in values:
+        current = value if current is None else alpha * value + (1 - alpha) * current
+        smoothed.append(current)
+    return smoothed
+
+
+def plot_metric(tag, filename, title, ylabel):
+    series = [
+        ("object_C_coarse", read_scalars(COARSE_RUN, tag)),
+        ("object_C_fine", read_scalars(FINE_RUN, tag)),
+    ]
+    if not any(points for _, points in series):
+        print(f"No TensorBoard scalar found for {tag}; skip {filename}.")
+        return
+
+    plt.figure(figsize=(8, 5), dpi=180)
+    colors = {"object_C_coarse": "#d62728", "object_C_fine": "#1f77b4"}
+
+    for name, points in series:
+        if not points:
+            continue
+        steps = [step for step, _ in points]
+        values = [value for _, value in points]
+        color = colors[name]
+        plt.plot(steps, values, color=color, alpha=0.22, linewidth=1.0, label=f"{name} raw")
+        plt.plot(steps, ema(values), color=color, alpha=0.95, linewidth=2.6, label=f"{name} EMA")
+
+    plt.title(title, fontsize=13)
+    plt.xlabel("Step", fontsize=11)
+    plt.ylabel(ylabel, fontsize=11)
+    plt.grid(True, alpha=0.25)
+    plt.legend(fontsize=9)
+    plt.tight_layout()
+    output_path = REPORT_DIR / filename
+    plt.savefig(output_path)
+    plt.close()
+    print(f"Wrote {output_path}")
+
+
+REPORT_DIR.mkdir(parents=True, exist_ok=True)
+for tag, (filename, title, ylabel) in METRICS.items():
+    plot_metric(tag, filename, title, ylabel)
+PY
+
+# magic123_plot_ema: writes report/objectC_loss_total.png, report/objectC_loss_rgb.png, and report/objectC_loss_mask.png from coarse/fine TensorBoard raw losses.

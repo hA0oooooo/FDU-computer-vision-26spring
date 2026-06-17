@@ -4,14 +4,17 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${PROJECT_ROOT}/scripts/timing.sh"
 source "${PROJECT_ROOT}/scripts/wandb.sh"
-OBJECT_A_DIR="${PROJECT_ROOT}/dataset/object_A"
+OBJECT_A_NAME="object_A"
+OBJECT_A_DIR="${PROJECT_ROOT}/dataset/${OBJECT_A_NAME}"
 IMAGES_RAW_DIR="${OBJECT_A_DIR}/images_raw"
 IMAGES_DIR="${OBJECT_A_DIR}/images"
 SPARSE_DIR="${OBJECT_A_DIR}/sparse"
 DATABASE_PATH="${OBJECT_A_DIR}/database.db"
 OUTPUT_DIR="${OBJECT_A_DIR}/2dgs_output"
 GS_DIR="${PROJECT_ROOT}/2d-gaussian-splatting"
-GPU=0
+GPU=1
+PORT=6010
+MAX_STEPS=10000
 LAMBDA_MASK=0.1
 MESH_VOXEL_SIZE=0.006
 MESH_SDF_TRUNC=0.024
@@ -33,7 +36,7 @@ mkdir -p "$U2NET_HOME"
 
 cd "$PROJECT_ROOT"
 
-run_timed object_A preprocess \
+run_timed "$OBJECT_A_NAME" preprocess \
   python scripts/preprocess_image.py "$IMAGES_RAW_DIR" objectA
 
 # scripts/preprocess_image.py: reads original images from images_raw and overwrites matching transparent RGBA PNG files in images.
@@ -49,7 +52,7 @@ mkdir -p "$SPARSE_DIR"
 
 unset LD_LIBRARY_PATH
 
-run_timed object_A colmap_feature_extractor \
+run_timed "$OBJECT_A_NAME" colmap_feature_extractor \
 colmap feature_extractor \
   --database_path "$DATABASE_PATH" \
   --image_path "$IMAGES_DIR" \
@@ -65,7 +68,7 @@ colmap feature_extractor \
 # --FeatureExtraction.use_gpu: enables GPU feature extraction.
 # --FeatureExtraction.gpu_index: selects the physical GPU used by COLMAP feature extraction.
 
-run_timed object_A colmap_exhaustive_matcher \
+run_timed "$OBJECT_A_NAME" colmap_exhaustive_matcher \
 colmap exhaustive_matcher \
   --database_path "$DATABASE_PATH" \
   --FeatureMatching.use_gpu 1 \
@@ -75,7 +78,7 @@ colmap exhaustive_matcher \
 # --FeatureMatching.use_gpu: enables GPU feature matching.
 # --FeatureMatching.gpu_index: selects the physical GPU used by COLMAP feature matching.
 
-run_timed object_A colmap_mapper \
+run_timed "$OBJECT_A_NAME" colmap_mapper \
 colmap mapper \
   --database_path "$DATABASE_PATH" \
   --image_path "$IMAGES_DIR" \
@@ -85,7 +88,7 @@ colmap mapper \
 # --image_path: reads the same transparent foreground PNG files used during feature extraction.
 # --output_path: writes camera poses and the sparse point cloud to sparse/0.
 
-run_timed object_A colmap_model_analyzer \
+run_timed "$OBJECT_A_NAME" colmap_model_analyzer \
 colmap model_analyzer \
   --path "${SPARSE_DIR}/0"
 
@@ -103,31 +106,35 @@ ensure_2dgs_alpha_patch
 
 cd "$GS_DIR"
 
-run_timed object_A 2dgs_train \
+run_timed "$OBJECT_A_NAME" 2dgs_train \
 env CUDA_VISIBLE_DEVICES=$GPU python train.py \
   -s "$OBJECT_A_DIR" \
   -m "$OUTPUT_DIR" \
-  --iterations 30000 \
-  --save_iterations 7000 30000 \
-  --test_iterations 7000 30000 \
+  --iterations "$MAX_STEPS" \
+  --position_lr_max_steps "$MAX_STEPS" \
+  --save_iterations "$MAX_STEPS" \
+  --test_iterations "$MAX_STEPS" \
+  --port "$PORT" \
   --lambda_mask "$LAMBDA_MASK"
 
-log_tensorboard_to_wandb object_A "$OUTPUT_DIR"
+log_metrics_to_wandb "$OBJECT_A_NAME" --profile twodgs "$OUTPUT_DIR"
 
 # CUDA_VISIBLE_DEVICES: exposes one physical GPU to 2DGS as logical CUDA device 0.
 # -s: reads images and sparse/0 from the Object A scene directory.
 # -m: writes checkpoints, logs, and training artifacts to 2dgs_output.
-# --iterations: runs the complete 2DGS optimization schedule.
-# --save_iterations: saves intermediate and final point-cloud checkpoints.
-# --test_iterations: evaluates the model at the same intermediate and final iterations.
+# --iterations: runs Object A training for MAX_STEPS steps.
+# --position_lr_max_steps: matches the position learning-rate schedule to the shortened training length.
+# --save_iterations: saves only the final checkpoint for the configured MAX_STEPS run.
+# --test_iterations: evaluates the final checkpoint.
+# --port: avoids the default 2DGS network GUI port when another 2DGS job is running.
 # --lambda_mask: constrains rendered opacity to the shoe alpha mask, which helps stabilize low-texture sole geometry.
-# log_tensorboard_to_wandb: uploads 2DGS TensorBoard loss and validation metrics to WandB when WANDB_ENABLE=1.
+# log_metrics_to_wandb: uploads selected 2DGS loss and PSNR metrics to WandB after training; upload failure does not change artifacts.
 
-run_timed object_A 2dgs_render_export \
+run_timed "$OBJECT_A_NAME" 2dgs_render_export \
 env CUDA_VISIBLE_DEVICES=$GPU python render.py \
   -s "$OBJECT_A_DIR" \
   -m "$OUTPUT_DIR" \
-  --iteration 30000 \
+  --iteration "$MAX_STEPS" \
   --num_cluster 1 \
   --voxel_size "$MESH_VOXEL_SIZE" \
   --sdf_trunc "$MESH_SDF_TRUNC"
@@ -135,6 +142,6 @@ env CUDA_VISIBLE_DEVICES=$GPU python render.py \
 # CUDA_VISIBLE_DEVICES: exposes the same physical GPU used for training.
 # -s: reads the Object A source scene.
 # -m: loads the trained 2DGS model and writes render artifacts.
-# --iteration: loads the final checkpoint and exports rendered views, fuse.ply, and fuse_post.ply.
+# --iteration: loads the final MAX_STEPS checkpoint and exports rendered views, fuse.ply, and fuse_post.ply.
 # --num_cluster: keeps only the largest connected mesh component in fuse_post.ply.
 # --voxel_size/--sdf_trunc: use slightly smoother TSDF fusion to reduce fragmented sole surfaces.

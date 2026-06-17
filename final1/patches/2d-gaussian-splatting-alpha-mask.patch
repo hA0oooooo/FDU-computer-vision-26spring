@@ -1,13 +1,3 @@
-From 73b79711ac21b4a026f155c0b5cd58fc43a77234 Mon Sep 17 00:00:00 2001
-From: hA0 <140323471+hA0oooooo@users.noreply.github.com>
-Date: Tue, 9 Jun 2026 01:59:38 +0000
-Subject: [PATCH] Support alpha mask supervision
-
----
- arguments/__init__.py |  1 +
- train.py              | 17 +++++++++++++++--
- 2 files changed, 16 insertions(+), 2 deletions(-)
-
 diff --git a/arguments/__init__.py b/arguments/__init__.py
 index 2977a88..b3b5508 100644
 --- a/arguments/__init__.py
@@ -64,6 +54,3 @@ index 26631b8..f4bb4f3 100644
                      if tb_writer and (idx < 5):
                          from utils.general_utils import colormap
                          depth = render_pkg["surf_depth"]
--- 
-2.34.1
-

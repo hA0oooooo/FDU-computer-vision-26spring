@@ -5,10 +5,10 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${PROJECT_ROOT}/scripts/timing.sh"
 source "${PROJECT_ROOT}/scripts/wandb.sh"
 THREESTUDIO_DIR="${PROJECT_ROOT}/threestudio"
-OBJECT_B_NAME="${OBJECT_B_NAME:-object_B}"
+OBJECT_B_NAME="object_B"
 OBJECT_B_DIR="${PROJECT_ROOT}/dataset/${OBJECT_B_NAME}"
-GPU=1
-MAX_STEPS=12000
+GPU=2
+MAX_STEPS=10000
 SEED=42
 GUIDANCE_SCALE=75.0
 LAMBDA_SPARSITY=10.0
@@ -17,24 +17,35 @@ LAMBDA_SPARSITY=10.0
 PROMPT="a zoomed out DSLR product photo of a single umbrella-shaped mushroom, one broad beige brown cap with subtle radial grooves, visible gills under the cap, one straight thick white stem with a small ring, full object, centered, clean silhouette, natural matte surface, detailed organic texture, plain background"
 NEGATIVE_PROMPT="extra cap, extra stem, stacked body, multiple mushrooms, deformed, distorted, broken geometry, floating parts, messy background, cropped, blurry, text, watermark"
 
-# # object B - another
-# PROMPT="a zoomed out DSLR product photo of a single front-facing puppy plush toy, one round head, one short muzzle, two long floppy ears, one compact solid bean-shaped body, two small front paws visible, rear legs hidden, soft light brown fabric, full object, centered, clean silhouette, opaque solid shape, plain white background"
-# NEGATIVE_PROMPT="multiple dogs, duplicate head, second face, face on back, extra muzzle, extra ears, extra paws, many legs, side view, hollow body, holes, transparent body, missing torso, dust, fur cloud, floating debris, distorted anatomy, broken shape, cropped, blurry, cartoon, text, watermark"
-
 NEGATIVE_PROMPT_ARGS=()
 if [ -n "$NEGATIVE_PROMPT" ]; then
   NEGATIVE_PROMPT_ARGS=(system.prompt_processor.negative_prompt="$NEGATIVE_PROMPT")
 fi
 
-WANDB_ARGS=()
-if wandb_enabled; then
-  setup_wandb_env
-  WANDB_ARGS=(
-    system.loggers.wandb.enable=true
-    system.loggers.wandb.project="$WANDB_PROJECT"
-    system.loggers.wandb.name="$OBJECT_B_NAME"
-  )
-fi
+TRAIN_ARGS=(
+  --config configs/dreamfusion-sd.yaml
+  --train
+  --gpu 0
+  seed=$SEED
+  exp_root_dir="../dataset/${OBJECT_B_NAME}"
+  name=.
+  tag=.
+  use_timestamp=false
+  trainer.max_steps=$MAX_STEPS
+  system.prompt_processor.pretrained_model_name_or_path="stable-diffusion-v1-5/stable-diffusion-v1-5"
+  system.guidance.pretrained_model_name_or_path="stable-diffusion-v1-5/stable-diffusion-v1-5"
+  system.prompt_processor.prompt="$PROMPT"
+  "${NEGATIVE_PROMPT_ARGS[@]}"
+  system.guidance.guidance_scale=$GUIDANCE_SCALE
+  system.loss.lambda_sparsity=$LAMBDA_SPARSITY
+)
+
+EXPORT_ARGS=(
+  --config "${OBJECT_B_DIR}/configs/parsed.yaml"
+  --export
+  --gpu 0
+  resume="${OBJECT_B_DIR}/ckpts/last.ckpt"
+)
 
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate cvpj1
@@ -46,6 +57,9 @@ export PATH=$CUDA_HOME/bin:$PATH
 export LD_LIBRARY_PATH=$CUDA_HOME/lib:$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}
 export TORCH_CUDA_ARCH_LIST="8.6"
 export TCNN_CUDA_ARCHITECTURES=86
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export DIFFUSERS_OFFLINE=1
 
 mkdir -p "$OBJECT_B_DIR"
 rm -rf \
@@ -61,23 +75,9 @@ rm -rf \
 cd "$THREESTUDIO_DIR"
 
 run_timed "$OBJECT_B_NAME" threestudio_train \
-env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
-  --config configs/dreamfusion-sd.yaml \
-  --train \
-  --gpu 0 \
-  seed=$SEED \
-  exp_root_dir="../dataset/${OBJECT_B_NAME}" \
-  name=. \
-  tag=. \
-  use_timestamp=false \
-  trainer.max_steps=$MAX_STEPS \
-  system.prompt_processor.pretrained_model_name_or_path="stable-diffusion-v1-5/stable-diffusion-v1-5" \
-  system.guidance.pretrained_model_name_or_path="stable-diffusion-v1-5/stable-diffusion-v1-5" \
-  system.prompt_processor.prompt="$PROMPT" \
-  "${NEGATIVE_PROMPT_ARGS[@]}" \
-  system.guidance.guidance_scale=$GUIDANCE_SCALE \
-  system.loss.lambda_sparsity=$LAMBDA_SPARSITY \
-  "${WANDB_ARGS[@]}"
+env CUDA_VISIBLE_DEVICES=$GPU python launch.py "${TRAIN_ARGS[@]}"
+
+log_metrics_to_wandb "$OBJECT_B_NAME" --profile dreamfusion "${OBJECT_B_DIR}/csv_logs"
 
 # CUDA_VISIBLE_DEVICES: exposes one physical GPU to threestudio as logical CUDA device 0.
 # --config: selects the DreamFusion Stable Diffusion configuration.
@@ -91,18 +91,14 @@ env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
 # trainer.max_steps: runs the configured SDS optimization for MAX_STEPS steps.
 # system.prompt_processor.pretrained_model_name_or_path: uses the accessible Stable Diffusion v1.5 prompt encoder.
 # system.guidance.pretrained_model_name_or_path: uses the matching Stable Diffusion v1.5 guidance model.
-# system.prompt_processor.prompt: defines the generated virtual asset as a single natural umbrella-shaped mushroom.
-# system.prompt_processor.negative_prompt: discourages extra caps, extra stems, stacked forms, and broken geometry.
+# system.prompt_processor.prompt: defines the generated Object B virtual asset.
+# system.prompt_processor.negative_prompt: discourages extra parts, duplicated structure, and broken geometry.
 # system.guidance.guidance_scale: reduces overly aggressive SDS guidance to improve geometry stability.
 # system.loss.lambda_sparsity: increases density sparsity to suppress bottom diffusion, floaters, and unnecessary volume density.
-# system.loggers.wandb.*: records threestudio loss, validation images, and videos to WandB when WANDB_ENABLE=1.
+# log_metrics_to_wandb: uploads selected SDS, orient, sparsity, and opaque losses to WandB after training; upload failure does not change artifacts.
 
 run_timed "$OBJECT_B_NAME" threestudio_export \
-env CUDA_VISIBLE_DEVICES=$GPU python launch.py \
-  --config "${OBJECT_B_DIR}/configs/parsed.yaml" \
-  --export \
-  --gpu 0 \
-  resume="${OBJECT_B_DIR}/ckpts/last.ckpt"
+env CUDA_VISIBLE_DEVICES=$GPU python launch.py "${EXPORT_ARGS[@]}"
 
 # CUDA_VISIBLE_DEVICES: exposes the same physical GPU used for training.
 # --config: restores the exact resolved training configuration.
