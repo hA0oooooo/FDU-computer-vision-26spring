@@ -4,11 +4,12 @@ WANDB_ENTITY="${WANDB_ENTITY:-fudan-university-CS50028}"
 WANDB_PROJECT="${WANDB_PROJECT:-final-project}"
 WANDB_ENABLE="${WANDB_ENABLE:-1}"
 WANDB_MODE="${WANDB_MODE:-online}"
-WANDB_DIR="${WANDB_DIR:-${PROJECT_ROOT}/report/wandb}"
+WANDB_DIR="${WANDB_DIR:-${PROJECT_ROOT}/wandb}"
 WANDB_CACHE_DIR="${WANDB_CACHE_DIR:-${WANDB_DIR}/cache}"
 WANDB_CONFIG_DIR="${WANDB_CONFIG_DIR:-${WANDB_DIR}/config}"
 WANDB_ARTIFACT_DIR="${WANDB_ARTIFACT_DIR:-${WANDB_DIR}/artifacts}"
 WANDB_SILENT="${WANDB_SILENT:-true}"
+WANDB_INIT_TIMEOUT="${WANDB_INIT_TIMEOUT:-600}"
 
 wandb_enabled() {
   [ "$WANDB_ENABLE" = "1" ] || [ "$WANDB_ENABLE" = "true" ]
@@ -24,6 +25,7 @@ setup_wandb_env() {
   export WANDB_CONFIG_DIR
   export WANDB_ARTIFACT_DIR
   export WANDB_SILENT
+  export WANDB_INIT_TIMEOUT
 }
 
 log_metrics_to_wandb() {

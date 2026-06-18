@@ -14,11 +14,16 @@ OUTPUT_DIR="${OBJECT_A_DIR}/2dgs_output"
 GS_DIR="${PROJECT_ROOT}/2d-gaussian-splatting"
 GPU=1
 PORT=6010
-MAX_STEPS=10000
+MAX_STEPS=15000
+EVAL_INTERVAL=1000
 LAMBDA_MASK=0.1
 MESH_VOXEL_SIZE=0.006
 MESH_SDF_TRUNC=0.024
 TWODGS_PATCH="${PROJECT_ROOT}/patches/2d-gaussian-splatting-alpha-mask.patch"
+TEST_ITERATIONS=()
+for step in $(seq "$EVAL_INTERVAL" "$EVAL_INTERVAL" "$MAX_STEPS"); do
+  TEST_ITERATIONS+=("$step")
+done
 
 ensure_2dgs_alpha_patch() {
   if grep -q "lambda_mask" "${GS_DIR}/arguments/__init__.py"; then
@@ -113,7 +118,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python train.py \
   --iterations "$MAX_STEPS" \
   --position_lr_max_steps "$MAX_STEPS" \
   --save_iterations "$MAX_STEPS" \
-  --test_iterations "$MAX_STEPS" \
+  --test_iterations "${TEST_ITERATIONS[@]}" \
   --port "$PORT" \
   --lambda_mask "$LAMBDA_MASK"
 
@@ -125,7 +130,7 @@ log_metrics_to_wandb "$OBJECT_A_NAME" --profile twodgs "$OUTPUT_DIR"
 # --iterations: runs Object A training for MAX_STEPS steps.
 # --position_lr_max_steps: matches the position learning-rate schedule to the shortened training length.
 # --save_iterations: saves only the final checkpoint for the configured MAX_STEPS run.
-# --test_iterations: evaluates the final checkpoint.
+# --test_iterations: evaluates every EVAL_INTERVAL steps.
 # --port: avoids the default 2DGS network GUI port when another 2DGS job is running.
 # --lambda_mask: constrains rendered opacity to the shoe alpha mask, which helps stabilize low-texture sole geometry.
 # log_metrics_to_wandb: uploads selected 2DGS loss and PSNR metrics to WandB after training; upload failure does not change artifacts.

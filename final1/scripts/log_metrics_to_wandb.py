@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import csv
+import os
 from pathlib import Path
 
 import wandb
@@ -133,7 +134,11 @@ def main():
         group=wandb_group(args.profile),
         tags=[args.profile],
         config={"sources": [str(source) for source in existing_sources]},
-        settings=wandb.Settings(silent=True, x_disable_viewer=True),
+        settings=wandb.Settings(
+            silent=True,
+            x_disable_viewer=True,
+            init_timeout=float(os.environ.get("WANDB_INIT_TIMEOUT", "600")),
+        ),
     )
     total = 0
     try:

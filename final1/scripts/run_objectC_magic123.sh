@@ -28,7 +28,7 @@ COARSE_WS="${OUT_ROOT}/object_C_coarse"
 FINE_WS="${OUT_ROOT}/object_C_fine"
 FIXED_COARSE_CKPT="${COARSE_WS}/checkpoints/object_C_coarse_latest.pth"
 GPU=3
-MAX_STEPS=10000
+MAX_STEPS=5000
 LAMBDA_2D_3D=1.0
 LAMBDA_MASK=3
 

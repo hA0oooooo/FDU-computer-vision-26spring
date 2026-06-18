@@ -10,10 +10,15 @@ DATA_ROOT="${PROJECT_ROOT}/dataset/360_v2"
 SCENE="${1:-garden}"
 GPU=0
 PORT=6020
-MAX_STEPS=10000
+MAX_STEPS=15000
+EVAL_INTERVAL=1000
 
 SCENE_DIR="${DATA_ROOT}/${SCENE}"
 OUT_DIR="${PROJECT_ROOT}/dataset/${SCENE}_2dgs_output"
+TEST_ITERATIONS=()
+for step in $(seq "$EVAL_INTERVAL" "$EVAL_INTERVAL" "$MAX_STEPS"); do
+  TEST_ITERATIONS+=("$step")
+done
 
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate cvpj1
@@ -62,7 +67,7 @@ env CUDA_VISIBLE_DEVICES=$GPU python train.py \
   --iterations "$MAX_STEPS" \
   --position_lr_max_steps "$MAX_STEPS" \
   --save_iterations "$MAX_STEPS" \
-  --test_iterations "$MAX_STEPS" \
+  --test_iterations "${TEST_ITERATIONS[@]}" \
   --port "$PORT" \
   --depth_ratio 0
 
@@ -75,7 +80,7 @@ log_metrics_to_wandb "background_${SCENE}" --profile twodgs "$OUT_DIR"
 # --iterations: runs background 2DGS training for MAX_STEPS steps.
 # --position_lr_max_steps: matches the position learning-rate schedule to the shortened training length.
 # --save_iterations: saves only the final checkpoint for the configured MAX_STEPS run.
-# --test_iterations: evaluates the final checkpoint.
+# --test_iterations: evaluates every EVAL_INTERVAL steps.
 # --port: avoids the default 2DGS network GUI port when another 2DGS job is running.
 # --depth_ratio 0: uses mean depth, which is usually more stable for unbounded scenes.
 # log_metrics_to_wandb: uploads selected 2DGS loss and PSNR metrics to WandB after training; upload failure does not change artifacts.
