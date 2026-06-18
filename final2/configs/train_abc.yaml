@@ -7,6 +7,6 @@ wandb_entity: fudan-university-CS50028
 steps: 50000
 batch_size: 64
 save_freq: 10000
-log_freq: 100
+log_freq: 1
 tolerance_s: 0.001
 disable_artifact: true

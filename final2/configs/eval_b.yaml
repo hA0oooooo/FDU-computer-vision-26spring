@@ -1,4 +1,4 @@
-gpu_id: 2
+gpu_id: 0
 run_name: act_B
 step: "050000"
 dataset_repo: calvin_task_ABC_D_lerobot_3_4

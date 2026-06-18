@@ -25,13 +25,15 @@ REQUIRED_KEYS = [
 ]
 
 
-def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit(f"Usage: python {sys.argv[0]} CONFIG.yaml")
+def parse_config_path() -> str:
+    if len(sys.argv) == 3 and sys.argv[1] == "--config":
+        return sys.argv[2]
+    raise SystemExit(f"Usage: python {sys.argv[0]} --config CONFIG.yaml")
 
+
+def main() -> None:
     root = project_root()
-    config_path = Path(sys.argv[1])
-    cfg = load_config(str(config_path))
+    cfg = load_config(str(Path(parse_config_path())))
     require(cfg, REQUIRED_KEYS)
 
     run_name = cfg["run_name"]
@@ -86,3 +88,7 @@ def main() -> None:
             log_file.write(line)
         if process.wait() != 0:
             raise subprocess.CalledProcessError(process.returncode, cmd)
+
+
+if __name__ == "__main__":
+    main()
