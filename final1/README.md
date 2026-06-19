@@ -4,6 +4,7 @@
 
 - GitHub Repo：`https://github.com/hA0oooooo/FDU-computer-vision-26spring/tree/main/final1`
 - 模型权重与数字资产下载：`https://drive.google.com/drive/folders/1nRW7w6xY1Dy_EY5k-Wd3xGI6H3KHcMxG?usp=sharing`
+- 多视角漫游渲染视频：`https://drive.google.com/file/d/17vgmmyJAXXr9sq7nr6X-VkhohFKlJ_C1/view?usp=sharing`
 
 <p align="center">
   <video src="report/merge.mp4" controls width="720"></video>
