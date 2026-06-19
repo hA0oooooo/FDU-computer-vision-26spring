@@ -1,4 +1,4 @@
-# Final1：基于2DGS 与AIGC 的多源资产生成与真实场景融合
+# Final1：基于 2DGS 与 AIGC 的多源资产生成与真实场景融合
 
 题目一完成一个完整的 3D 资产构建流程：使用 COLMAP + 2D Gaussian Splatting 重建真实多视角物体 Object A，使用 threestudio / DreamFusion 从文本生成 Object B，使用 Magic123 从单张真实图片生成 Object C，并使用 Mip-NeRF 360 的 garden 场景作为统一背景。最终将四类资产统一导入 Blender，完成尺度、位置和相机轨迹调整后输出多视角漫游视频。训练过程相关信息同步到 W&B，各阶段耗时记录到 report/timing.csv，运行入口封装为固定脚本，在 final1/ 目录下执行。
 
