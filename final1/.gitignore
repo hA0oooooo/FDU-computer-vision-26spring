@@ -10,3 +10,4 @@ dataset/360_v2.zip
 dataset/object_A/images_raw
 
 wandb/
+report.md
