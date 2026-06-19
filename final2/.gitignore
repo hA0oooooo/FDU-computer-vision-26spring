@@ -10,3 +10,4 @@ dataset/
 logs/
 wandb/
 outputs/
+report.md

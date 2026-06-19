@@ -1,0 +1,332 @@
+diff --git a/src/lerobot/scripts/lerobot_train.py b/src/lerobot/scripts/lerobot_train.py
+index 4ddef310..7a49312f 100644
+--- a/src/lerobot/scripts/lerobot_train.py
++++ b/src/lerobot/scripts/lerobot_train.py
+@@ -22,6 +22,7 @@ import dataclasses
+ import logging
+ import time
+ from contextlib import nullcontext
++from pathlib import Path
+ from pprint import pformat
+ from typing import TYPE_CHECKING, Any
+ 
+@@ -60,6 +61,16 @@ from lerobot.utils.utils import (
+     inside_slurm,
+ )
+ 
++from .act_d_eval import (
++    D_DATASET_REPO,
++    EVAL_INTERVAL,
++    SAMPLED_EVAL_SEED,
++    SAMPLED_EVAL_SIZE,
++    compute_action_l1,
++    make_d_eval_loader,
++    report_context,
++    write_sampled_eval,
++)
+ from .lerobot_eval import eval_policy_all
+ 
+ 
+@@ -414,6 +425,27 @@ def train(cfg: TrainPipelineConfig, accelerator: "Accelerator | None" = None):
+         persistent_workers=cfg.persistent_workers and cfg.num_workers > 0,
+     )
+ 
++    sampled_eval_loader = None
++    sampled_eval_dataset = None
++    sampled_eval_context = None
++    sampled_eval_out_path = None
++    if is_main_process and not cfg.is_reward_model_training:
++        root = cfg.output_dir.parent.parent
++        step_id = get_step_identifier(cfg.steps, cfg.steps)
++        model_name = cfg.job_name or cfg.output_dir.name
++        sampled_eval_context = report_context(root, model_name, cfg.steps, step_id)
++        sampled_eval_out_path = cfg.output_dir / f"{model_name}_{step_id}_eval.json"
++        sampled_eval_dataset, sampled_eval_loader = make_d_eval_loader(
++            cfg.policy,
++            D_DATASET_REPO,
++            Path(sampled_eval_context["dataset_root"]),
++            cfg.batch_size,
++            cfg.num_workers,
++            cfg.tolerance_s,
++            sampled_eval_size=SAMPLED_EVAL_SIZE,
++            sampled_eval_seed=SAMPLED_EVAL_SEED,
++        )
++
+     # Prepare everything with accelerator
+     accelerator.wait_for_everyone()
+     policy, optimizer, dataloader, lr_scheduler = accelerator.prepare(
+@@ -484,6 +516,11 @@ def train(cfg: TrainPipelineConfig, accelerator: "Accelerator | None" = None):
+         is_log_step = cfg.log_freq > 0 and step % cfg.log_freq == 0 and is_main_process
+         is_saving_step = step % cfg.save_freq == 0 or step == cfg.steps
+         is_eval_step = cfg.eval_freq > 0 and step % cfg.eval_freq == 0
++        is_sampled_eval_step = (
++            is_main_process
++            and sampled_eval_loader is not None
++            and step % EVAL_INTERVAL == 0
++        )
+ 
+         if is_log_step:
+             logging.info(train_tracker)
+@@ -498,6 +535,31 @@ def train(cfg: TrainPipelineConfig, accelerator: "Accelerator | None" = None):
+                 wandb_logger.log_dict(wandb_log_dict, step)
+             train_tracker.reset_averages()
+ 
++        if is_sampled_eval_step:
++            metrics = compute_action_l1(
++                accelerator.unwrap_model(policy),
++                preprocessor,
++                sampled_eval_loader,
++                sampled_eval_dataset.meta.camera_keys,
++                desc=f"sampled D eval step {step}",
++            )
++            metrics["eval_type"] = "sampled"
++            logging.info(
++                "Sampled D eval step %s: normalized_action_l1=%.6f",
++                step,
++                metrics["normalized_action_l1"],
++            )
++            if wandb_logger:
++                wandb_logger.log_dict(
++                    {
++                        "normalized_action_l1": metrics["normalized_action_l1"],
++                        "mean_per_dimension_l1": metrics["mean_per_dimension_l1"],
++                    },
++                    step,
++                    mode="eval",
++                )
++            write_sampled_eval(sampled_eval_out_path, sampled_eval_context, step, metrics)
++
+         if cfg.save_checkpoint and is_saving_step:
+             if is_main_process:
+                 logging.info(f"Checkpoint policy after step {step}")
+diff --git a/src/lerobot/scripts/act_d_eval.py b/src/lerobot/scripts/act_d_eval.py
+new file mode 100644
+index 00000000..9976a7eb
+--- /dev/null
++++ b/src/lerobot/scripts/act_d_eval.py
+@@ -0,0 +1,225 @@
++from __future__ import annotations
++
++import json
++from pathlib import Path
++
++import torch
++from torch.utils.data import DataLoader, Subset
++from tqdm import tqdm
++
++from lerobot.datasets.dataset_metadata import LeRobotDatasetMetadata
++from lerobot.datasets.factory import resolve_delta_timestamps
++from lerobot.datasets.lerobot_dataset import LeRobotDataset
++from lerobot.utils.collate import lerobot_collate_fn
++from lerobot.utils.constants import ACTION
++
++
++EVAL_INTERVAL = 100
++SAMPLED_EVAL_SIZE = 2048
++SAMPLED_EVAL_SEED = 2026
++D_DATASET_REPO = "calvin_task_ABC_D_lerobot_3_4"
++D_DATASET_ROOT = "dataset/calvin_task_ABC_D/calvin_task_ABC_D_lerobot_3_4"
++
++
++def infer_train_envs(model: str) -> str:
++    return "ABC" if model.endswith("ABC") else "B"
++
++
++def report_context(root: Path, model: str, checkpoint_step: int, step_id: str) -> dict:
++    policy_path = root / "outputs" / model / "checkpoints" / step_id / "pretrained_model"
++    dataset_root = root / D_DATASET_ROOT
++    return {
++        "model": model,
++        "train_envs": infer_train_envs(model),
++        "test_env": "D",
++        "checkpoint_step": checkpoint_step,
++        "policy_path": str(policy_path),
++        "dataset_root": str(dataset_root),
++        "sampled_eval_config": {
++            "eval_interval": EVAL_INTERVAL,
++            "sampled_eval_size": SAMPLED_EVAL_SIZE,
++            "sampled_eval_seed": SAMPLED_EVAL_SEED,
++        },
++    }
++
++
++def make_d_eval_loader(
++    policy_cfg,
++    dataset_repo: str,
++    dataset_root: Path,
++    batch_size: int,
++    num_workers: int,
++    tolerance_s: float,
++    sampled_eval_size: int | None = None,
++    sampled_eval_seed: int = 2026,
++):
++    meta = LeRobotDatasetMetadata(dataset_repo, root=dataset_root)
++    dataset = LeRobotDataset(
++        dataset_repo,
++        root=dataset_root,
++        delta_timestamps=resolve_delta_timestamps(policy_cfg, meta),
++        return_uint8=True,
++        tolerance_s=tolerance_s,
++    )
++    if sampled_eval_size is not None:
++        generator = torch.Generator()
++        generator.manual_seed(sampled_eval_seed)
++        indices = torch.randperm(len(dataset), generator=generator)[: min(sampled_eval_size, len(dataset))]
++        dataset_for_loader = Subset(dataset, indices.tolist())
++    else:
++        dataset_for_loader = dataset
++
++    loader = DataLoader(
++        dataset_for_loader,
++        batch_size=batch_size,
++        shuffle=False,
++        num_workers=num_workers,
++        collate_fn=lerobot_collate_fn if dataset.meta.has_language_columns else None,
++    )
++    return dataset, loader
++
++
++def compute_action_l1(
++    policy,
++    preprocessor,
++    loader: DataLoader,
++    camera_keys: list[str],
++    desc: str,
++    include_breakdown: bool = False,
++) -> dict:
++    was_training = policy.training
++    policy.eval()
++
++    abs_sum = 0.0
++    valid_values = 0
++    samples = 0
++    dim_abs = None
++    dim_valid = 0.0
++    chunk_abs = None
++    chunk_valid = None
++
++    with torch.inference_mode():
++        for batch in tqdm(loader, desc=desc):
++            for key in camera_keys:
++                if key in batch and batch[key].dtype == torch.uint8:
++                    batch[key] = batch[key].float() / 255.0
++            batch = preprocessor(batch)
++            pred = policy.predict_action_chunk(batch)
++            target = batch[ACTION]
++            err = (pred - target).abs()
++
++            if "action_is_pad" in batch:
++                mask = ~batch["action_is_pad"]
++            else:
++                mask = torch.ones(err.shape[:2], dtype=torch.bool, device=err.device)
++            mask = mask.to(device=err.device)
++            mask3 = mask.unsqueeze(-1)
++
++            abs_sum += float((err * mask3).sum().item())
++            valid_positions = float(mask.sum().item())
++            valid_values += int(valid_positions * err.shape[-1])
++            samples += int(target.shape[0])
++
++            if include_breakdown:
++                dim_abs_batch = (err * mask3).sum(dim=(0, 1)).detach().cpu()
++                chunk_abs_batch = (err * mask3).sum(dim=(0, 2)).detach().cpu()
++                chunk_valid_batch = (mask.sum(dim=0) * err.shape[-1]).detach().cpu()
++                dim_abs = dim_abs_batch if dim_abs is None else dim_abs + dim_abs_batch
++                chunk_abs = chunk_abs_batch if chunk_abs is None else chunk_abs + chunk_abs_batch
++                chunk_valid = (
++                    chunk_valid_batch if chunk_valid is None else chunk_valid + chunk_valid_batch
++                )
++                dim_valid += valid_positions
++
++    normalized = abs_sum / valid_values if valid_values else 0.0
++    result = {
++        "evaluated_samples": samples,
++        "valid_action_values": valid_values,
++        "normalized_action_l1": normalized,
++        "mean_per_dimension_l1": normalized,
++    }
++
++    if include_breakdown and dim_abs is not None and chunk_abs is not None and chunk_valid is not None:
++        per_dim = dim_abs / max(dim_valid, 1.0)
++        chunk_l1 = chunk_abs / chunk_valid.clamp_min(1)
++        chunk_step_l1 = []
++        for i in range(chunk_l1.numel()):
++            valid_count = int(chunk_valid[i].item())
++            if valid_count == 0:
++                continue
++            chunk_step_l1.append(
++                {
++                    "chunk_step": i,
++                    "normalized_action_l1": float(chunk_l1[i].item()),
++                    "valid_action_values": valid_count,
++                }
++            )
++
++        midpoint = max(1, len(chunk_step_l1) // 2)
++        front_values = [item["normalized_action_l1"] for item in chunk_step_l1[:midpoint]]
++        back_values = [item["normalized_action_l1"] for item in chunk_step_l1[midpoint:]]
++        if not back_values:
++            back_values = front_values
++        front_l1 = sum(front_values) / len(front_values) if front_values else 0.0
++        back_l1 = sum(back_values) / len(back_values) if back_values else 0.0
++
++        result.update(
++            {
++                "per_dimension_l1": {
++                    f"dim_{i}": float(per_dim[i].item()) for i in range(per_dim.numel())
++                },
++                "chunk_step_l1": chunk_step_l1,
++                "chunk_summary": {
++                    "front_half_l1": front_l1,
++                    "back_half_l1": back_l1,
++                    "degradation_ratio": back_l1 / front_l1 if front_l1 else 0.0,
++                },
++            }
++        )
++
++    if was_training:
++        policy.train()
++    return result
++
++
++def load_or_init_report(out_path: Path, context: dict) -> dict:
++    if out_path.exists():
++        report = json.loads(out_path.read_text())
++    else:
++        report = {}
++
++    report.update(context)
++    report.setdefault("eval_history", [])
++    return report
++
++
++def write_sampled_eval(out_path: Path, context: dict, step: int, metrics: dict) -> None:
++    report = load_or_init_report(out_path, context)
++    report["eval_history"].append(
++        {
++            "step": step,
++            "eval_type": "sampled",
++            "evaluated_samples": metrics["evaluated_samples"],
++            "valid_action_values": metrics["valid_action_values"],
++            "normalized_action_l1": metrics["normalized_action_l1"],
++            "mean_per_dimension_l1": metrics["mean_per_dimension_l1"],
++        }
++    )
++    out_path.parent.mkdir(parents=True, exist_ok=True)
++    out_path.write_text(json.dumps(report, indent=2) + "\n")
++
++
++def write_full_eval(out_path: Path, context: dict, metrics: dict) -> dict:
++    report = load_or_init_report(out_path, context)
++    report["final_eval"] = {
++        "eval_type": "full",
++        "evaluated_samples": metrics["evaluated_samples"],
++        "valid_action_values": metrics["valid_action_values"],
++        "normalized_action_l1": metrics["normalized_action_l1"],
++        "per_dimension_l1": metrics["per_dimension_l1"],
++        "chunk_step_l1": metrics["chunk_step_l1"],
++        "chunk_summary": metrics["chunk_summary"],
++    }
++    out_path.parent.mkdir(parents=True, exist_ok=True)
++    out_path.write_text(json.dumps(report, indent=2) + "\n")
++    return report
