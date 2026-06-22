@@ -21,11 +21,11 @@ LEGACY_OUTPUTS = [
 RUNS = {
     "act_B": {
         "path": OUTPUT_DIR / "act_B" / "act_B_050000_eval.json",
-        "color": "#d62728",
+        "color": "#a66a4a",
     },
     "act_ABC": {
         "path": OUTPUT_DIR / "act_ABC" / "act_ABC_050000_eval.json",
-        "color": "#1f77b4",
+        "color": "#ffb089",
     },
 }
 
